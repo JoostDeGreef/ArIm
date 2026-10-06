@@ -1,0 +1,7 @@
+# tmp files
+build/
+*~
+
+# output dirs
+bin/
+

@@ -1,0 +1,12 @@
+# tmp files
+*.build/
+*~
+
+# output dirs
+bin/
+include/
+lib/
+src/
+
+# reproducable sources
+sqlite/
