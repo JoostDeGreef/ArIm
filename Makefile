@@ -21,6 +21,16 @@ TST_FILES := $(patsubst src/tests/%.cpp,bin/tests/%,$(wildcard src/tests/*.cpp))
 EXE_FILES := $(patsubst src/%/main.cpp,bin/%,$(wildcard src/*/main.cpp))
 DEP_FILES := $(OBJ_FILES:.o=.d)
 
+#
+# define which libraries are needed for each executable
+#
+bin/tests/sqlite_smoketest: LDLIBS += ${GTEST_LIBS} ${SQLITE}
+bin/tokenizer: LDLIBS += ${SQLITE}
+
+#
+# generic targets
+#
+
 all: 3rdParty executables tests
 
 .PHONY: 3rdParty
@@ -32,13 +42,9 @@ clean:
 	find . -name "*~" -exec rm -f "{}" \;
 
 #
-# targets from above where we don't want to generate dependencies for
-# for all others, include the dependency files
+# include generated dependencies
 #
-#NODEPS := clean
-#ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
 -include $(DEP_FILES)
-#endif
     
 #
 # sqlite
@@ -62,15 +68,17 @@ build/%.o: src/%.cpp build/%.d
 	@mkdir -p $(dir $@)
 	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o $@ -c $<
 
-.PRECIOUS: build/tests%
-bin/tests/%: build/tests/%.o ${SQLITE} 
+.PRECIOUS: build/tests/%
+bin/tests/%: build/tests/%.o ${LDLIBS} 
 	@mkdir -p $(dir $@)
-	${CPP} ${CPPFLAGS} -o $@ $< ${GTEST_LIBS} ${SQLITE}
+	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
+	${CPP} ${CPPFLAGS} -o $@ $< ${LDLIBS}
 
 .PRECIOUS: build/%
-bin/%: build/%/main.o ${SQLITE} # add other dependencies here automatically?
+bin/%: build/%/main.o ${LDLIBS} 
 	@mkdir -p $(dir $@)
-	${CPP} ${CPPFLAGS} -o $@ $< ${SQLITE}
+	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
+	${CPP} ${CPPFLAGS} -o $@ $< ${LDLIBS}
 
 #
 # build & execute tests
