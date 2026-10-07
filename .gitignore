@@ -5,3 +5,5 @@ build/
 # output dirs
 bin/
 
+#compiler settings
+.vscode/
