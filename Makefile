@@ -5,7 +5,7 @@ CPP=g++
 CFLAGS=-W -Wall
 CPPFLAGS=-W -Wall
 DEFINES=
-INCLUDE=-I 3rdParty/include
+INCLUDE=-I 3rdParty/include -I src/tokenizer
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 SQLITE=build/3rdParty/sqlite3.o
 
@@ -25,7 +25,11 @@ DEP_FILES := $(OBJ_FILES:.o=.d)
 # define which libraries are needed for each executable
 #
 bin/tests/sqlite_smoketest: LDLIBS += ${GTEST_LIBS} ${SQLITE}
+bin/tests/sqlite_smoketest: OBJECTS += build/tests/sqlite_smoketest.o
+bin/tests/tokenizer_ut: LDLIBS += ${GTEST_LIBS} ${SQLITE}
+bin/tests/tokenizer_ut: OBJECTS += build/tests/tokenizer_ut.o
 bin/tokenizer: LDLIBS += ${SQLITE}
+bin/tokenizer: OBJECTS += build/tokenizer/main.o build/tokenizer/tokenizer.o
 
 #
 # generic targets
@@ -50,7 +54,7 @@ clean:
 # sqlite
 #
 	
-${SQLITE}:
+${SQLITE}: 
 	@mkdir -p $(dir $@)
 	${CC} ${CFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
 
@@ -59,26 +63,26 @@ ${SQLITE}:
 #
 
 .PRECIOUS: build/%.d
-build/%.d: src/%.cpp
+build/%.d: src/%.cpp Makefile
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -MM -MT '$(patsubst src/%.cpp,build/%.o,$<)' $< -MF $@
+	$(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/%.cpp,build/%.o,$<)' $< -MF $@
     
-.PRECIOUS: build/%.o
-build/%.o: src/%.cpp build/%.d
+.PRECIOUS: build/%.o 
+build/%.o: src/%.cpp build/%.d Makefile
 	@mkdir -p $(dir $@)
 	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o $@ -c $<
 
 .PRECIOUS: build/tests/%
-bin/tests/%: build/tests/%.o ${LDLIBS} 
+bin/tests/%: ${LDLIBS} ${OBJECTS} Makefile
 	@mkdir -p $(dir $@)
 	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
-	${CPP} ${CPPFLAGS} -o $@ $< ${LDLIBS}
+	${CPP} ${CPPFLAGS} -o $@ ${LDLIBS} ${OBJECTS} 
 
 .PRECIOUS: build/%
-bin/%: build/%/main.o ${LDLIBS} 
+bin/%: ${LDLIBS} ${OBJECTS} Makefile
 	@mkdir -p $(dir $@)
 	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
-	${CPP} ${CPPFLAGS} -o $@ $< ${LDLIBS}
+	${CPP} ${CPPFLAGS} -o $@ ${LDLIBS} ${OBJECTS} 
 
 #
 # build & execute tests

@@ -1,8 +1,11 @@
 #include <cstdio>
 #include <iostream>
 
-int main(int argc, char * argv[])
+#include "tokenizer.h"
+
+int main(int /*argc*/, char ** /*argv*/)
 {
+  test();
   return EXIT_SUCCESS;
 }
  
