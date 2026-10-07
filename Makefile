@@ -4,8 +4,6 @@ CC=gcc
 CPP=g++
 CFLAGS=-W -Wall
 CPPFLAGS=-W -Wall
-#CFLAGS=
-#CPPFLAGS=
 DEFINES=
 INCLUDE=-I 3rdParty/include
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
@@ -19,57 +17,47 @@ all: 3rdParty executables tests
 		
 clean:
 	rm -rf bin build
-
-bin: 
-	mkdir -p bin
-
-build:
-	mkdir -p build
-	
-build/tests: build
-	mkdir -p build/tests	
-	
-build/tokenizer: build
-	mkdir -p build/tokenizer
-
-build/3rdParty: build
-	mkdir -p build/3rdParty
+	find . -name "*~" -exec rm -f "{}" \;
 
 #
 # sqlite
 #
 	
-${SQLITE}: build/3rdParty
-	${CC} ${CCFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
+${SQLITE}:
+	@mkdir -p $(dir $@)
+	${CC} ${CFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
 
 #
-# sqlite_smoketest
-#			
-bin/sqlite_smoketest: bin build/tests/sqlite_smoketest.o ${SQLITE}
-	${CPP} ${CPPFLAGS} -o bin/sqlite_smoketest build/tests/sqlite_smoketest.o ${GTEST_LIBS} ${SQLITE}
-
-build/tests/sqlite_smoketest.o: build/tests src/tests/sqlite_smoketest.cpp
-	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o build/tests/sqlite_smoketest.o -c src/tests/sqlite_smoketest.cpp
-
+# turn all CPP files into objects / executables
 #
-# tokenizer
-#
-bin/tokenizer: bin build/tokenizer/main.o ${SQLITE}
-	${CPP} ${CPPFLAGS} -o bin/tokenizer build/tokenizer/main.o ${SQLITE}
+CPP_FILES := $(wildcard src/*.cpp src/*/*.cpp)
+OBJ_FILES := $(patsubst src/%.cpp,build/%.o,$(CPP_FILES))
+TST_FILES := $(patsubst src/tests/%.cpp,bin/tests/%,$(wildcard src/tests/*.cpp))
+EXE_FILES := $(patsubst src/%/main.cpp,bin/%,$(wildcard src/*/main.cpp))
+#create dependency file for each executable target?
 
-build/tokenizer/main.o: build/tokenizer src/tokenizer/main.cpp
-	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o build/tokenizer/main.o -c src/tokenizer/main.cpp
+build/%.o: src/%.cpp 
+	@mkdir -p $(dir $@)
+	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o $@ -c $<
+
+bin/tests/%: build/tests/%.o ${SQLITE} 
+	@mkdir -p $(dir $@)
+	${CPP} ${CPPFLAGS} -o $@ $< ${GTEST_LIBS} ${SQLITE}
+
+bin/%: build/%/main.o ${SQLITE} # add other dependencies here automatically?
+	@mkdir -p $(dir $@)
+	${CPP} ${CPPFLAGS} -o $@ $< ${SQLITE}
 
 #
 # build & execute tests
 #		
 .PHONY: tests	
-tests: bin/sqlite_smoketest
-	bin/sqlite_smoketest
+tests: ${TST_FILES}
+	# for each ${TST_FILES} execute? how?
 	
 #
 # build tools
 #	
 .PHONY: executables
-executables: bin/tokenizer
+executables: ${EXE_FILES}
 	
