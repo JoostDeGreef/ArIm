@@ -99,11 +99,11 @@ build/%.o: src/%.cpp build/%.d Makefile
 
 define sources_to_objects
     $(info sources_to_objects: [$1])
-    $(call process_sources,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/%/main.cpp,build/%,$1)' $1 -MF -))
+    $(call process_sources,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/tests/%.cpp,build/tests/%,$(patsubst src/%/main.cpp,build/%,$1))' $1 -MF -))
 endef
 define process_sources
     $(info process_sources: [$1])
-	echo $(subst :,: OBJECTS += ,$(firstword $1)) \
+	echo $(subst :,: OBJECTS += ,$(patsubst build/%,bin/%,$(firstword $1))) \
 	     $(patsubst src/%.cpp,build/%.o,$(sort $(wildcard $(patsubst %.h,%.cpp,$(filter src/%,$1)))))
 endef
 
