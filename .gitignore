@@ -5,5 +5,5 @@ build/
 # output dirs
 bin/
 
-#compiler settings
-.vscode/
+#compiler settings. Let's store this in git for now, for easy access
+#.vscode/

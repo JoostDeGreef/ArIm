@@ -9,7 +9,7 @@ INCLUDE=-I 3rdParty/include -I src/tokenizer
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 SQLITE=build/3rdParty/sqlite3.o
 
-# Add .d / .lnkto Make's recognized suffixes.
+# Add .d / .lnk to Make's recognized suffixes.
 SUFFIXES += .d .lnk
 
 #
@@ -23,20 +23,27 @@ DEP_FILES := $(OBJ_FILES:.o=.d)
 LNK_FILES := $(patsubst bin/tests/%,build/tests/%.lnk,$(TST_FILES)) $(patsubst bin/%,build/%/main.lnk,$(EXE_FILES))
 
 #
-# define which libraries are needed for each executable
-#
-bin/tests/sqlite_smoketest: LDLIBS += ${GTEST_LIBS} ${SQLITE}
-#bin/tests/sqlite_smoketest: OBJECTS += build/tests/sqlite_smoketest.o
-bin/tests/tokenizer_ut: LDLIBS += ${GTEST_LIBS} ${SQLITE}
-#bin/tests/tokenizer_ut: OBJECTS += build/tests/tokenizer_ut.o
-bin/tokenizer: LDLIBS += ${SQLITE}
-#bin/tokenizer: OBJECTS += build/tokenizer/main.o build/tokenizer/tokenizer.o
-
-#
 # generic targets
 #
 
+message:
+	@echo "Either use 'make release' or 'make debug'"
+
 all: 3rdParty executables tests
+
+run: 3rdParty run_tests
+
+release:
+	if [ -f build/.debug ]; then make clean; fi
+	mkdir -p build
+	touch build/.release
+	make CPPFLAGS="-W -Wall" all
+
+debug:
+	if [ -f build/.release ]; then make clean; fi
+	mkdir -p build
+	touch build/.debug
+	make CPPFLAGS="-g3 -O0 -W -Wall" all
 
 .PHONY: 3rdParty
 3rdParty:
@@ -52,23 +59,6 @@ clean:
 -include $(DEP_FILES)
 -include $(LNK_FILES)
     
-#
-# functions
-#
-
-# Convert a dependency list into candidate source files
-define deps_to_sources
-$(sort \
-  $(filter $(CPP_FILES), \
-    $(patsubst %.h,%.cpp,$(filter %.h %.cpp,$1)) \
-  ) \
-)
-endef
-
-define sources_to_objects
-$(patsubst src/%.cpp,build/%.o,$1)
-endef
-
 #
 # sqlite
 #
@@ -95,27 +85,33 @@ build/%.o: src/%.cpp build/%.d Makefile
 	@mkdir -p $(dir $@)
 	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o $@ -c $<
 
-# executables
+#
+# helper functions
+#
 
-define sources_to_objects
-    $(info sources_to_objects: [$1])
-    $(call process_sources,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/tests/%.cpp,build/tests/%,$(patsubst src/%/main.cpp,build/%,$1))' $1 -MF -))
+define lnk_file_from_src
+    $(call process_compiler_output,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/tests/%.cpp,build/tests/%,$(patsubst src/%/main.cpp,build/%,$1))' $1 -MF -))
 endef
-define process_sources
-    $(info process_sources: [$1])
-	echo $(subst :,: OBJECTS += ,$(patsubst build/%,bin/%,$(firstword $1))) \
-	     $(patsubst src/%.cpp,build/%.o,$(sort $(wildcard $(patsubst %.h,%.cpp,$(filter src/%,$1)))))
+define process_compiler_output
+	$(subst :,: OBJECTS += ,$(patsubst build/%,bin/%,$(firstword $1))) \
+	$(patsubst src/%.cpp,build/%.o,$(sort $(wildcard $(patsubst %.h,%.cpp,$(filter src/%,$1))))) \
+	"\n" \
+	$(subst :,: LDLIBS += ,$(patsubst build/%,bin/%,$(firstword $1))) \
+	$(if $(filter %/sqlite3.h,$1),${SQLITE}) \
+	$(if $(filter build/tests/%,$1),${GTEST_LIBS})
 endef
+
+# executables
 
 .PRECIOUS: build/%/main.lnk
 build/%/main.lnk: src/%/main.cpp Makefile
 	@mkdir -p $(dir $@)
-	@echo $(call sources_to_objects,$<) > $@
+	@echo Creating $@
+	@echo $(call lnk_file_from_src,$<) | awk '{$$1=$$1;print}' > $@
 
 .PRECIOUS: build/%
 bin/%: build/%/main.lnk $${LDLIBS} $${OBJECTS} Makefile
 	@mkdir -p $(dir $@)
-	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
 	${CPP} ${CPPFLAGS} -o $@ ${LDLIBS} ${OBJECTS} 
 
 #tests 
@@ -123,12 +119,12 @@ bin/%: build/%/main.lnk $${LDLIBS} $${OBJECTS} Makefile
 .PRECIOUS: build/tests/%.lnk
 build/tests/%.lnk: src/tests/%.cpp Makefile
 	@mkdir -p $(dir $@)
-	@echo $(call sources_to_objects,$<) > $@
+	@echo Creating $@
+	@echo $(call lnk_file_from_src,$<) | awk '{$$1=$$1;print}' > $@
 
 .PRECIOUS: build/tests/%
 bin/tests/%: build/tests/%.lnk $${LDLIBS} $${OBJECTS} Makefile
 	@mkdir -p $(dir $@)
-	$(if $(strip $(LDLIBS)),,$(error Please adjust Makefile: no LDLIBS defined for $@))
 	${CPP} ${CPPFLAGS} -o $@ ${LDLIBS} ${OBJECTS} 
 
 #
@@ -136,6 +132,9 @@ bin/tests/%: build/tests/%.lnk $${LDLIBS} $${OBJECTS} Makefile
 #		
 .PHONY: tests	
 tests: ${TST_FILES}
+
+.PHONY: run_tests
+run_tests: tests
 	@for test in $^; do \
 		echo "=== $$test ==="; \
 		$$test || exit 1; \
