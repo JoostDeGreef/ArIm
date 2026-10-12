@@ -27,7 +27,9 @@ LNK_FILES := $(patsubst bin/tests/%,build/tests/%.lnk,$(TST_FILES)) $(patsubst b
 #
 
 message:
-	@echo "Either use 'make release' or 'make debug'"
+	@echo "Either use 'make release' or 'make debug', possibly augmented with 'run'"
+	@echo "(so 'make debug run' would run a debug build of the unit tests)"
+	@echo "Any other argument: Here Be Dragons"
 
 all: 3rdParty executables tests
 
@@ -37,13 +39,13 @@ release:
 	if [ -f build/.debug ]; then make clean; fi
 	mkdir -p build
 	touch build/.release
-	make CPPFLAGS="-W -Wall" all
+	$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" all
 
 debug:
 	if [ -f build/.release ]; then make clean; fi
 	mkdir -p build
 	touch build/.debug
-	make CPPFLAGS="-g3 -O0 -W -Wall" all
+	$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
 
 .PHONY: 3rdParty
 3rdParty:
@@ -134,7 +136,7 @@ bin/tests/%: build/tests/%.lnk $${LDLIBS} $${OBJECTS} Makefile
 tests: ${TST_FILES}
 
 .PHONY: run_tests
-run_tests: tests
+run_tests: ${TST_FILES}
 	@for test in $^; do \
 		echo "=== $$test ==="; \
 		$$test || exit 1; \

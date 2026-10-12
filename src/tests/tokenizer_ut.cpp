@@ -67,11 +67,22 @@ TEST_F(TokenizerTest, GetTopTokenPairs)
     std::vector<TokenPairSet> sequencesTokenPairs;
     auto res = t.GetTopTokenPairs(2, sequencesTokenPairs);
     EXPECT_EQ(0, res.size());
-    TokenPairSet tps{TokenPair(0,0,2),TokenPair(0,1,1),TokenPair(0,2,3)};
-    sequencesTokenPairs.emplace_back(tps);
+    {
+        TokenPairSet tps{TokenPair(0,0,2),TokenPair(0,1,1),TokenPair(0,2,4)};
+        sequencesTokenPairs.emplace_back(tps);
+    }
     res = t.GetTopTokenPairs(2, sequencesTokenPairs);
     EXPECT_EQ(2, res.size());
-    EXPECT_EQ(3, res[0].count);
+    EXPECT_EQ(4, res[0].count);
     EXPECT_EQ(2, res[1].count);
+    {
+        TokenPairSet tps{TokenPair(0,0,2),TokenPair(0,1,1),TokenPair(0,3,3)};
+        sequencesTokenPairs.emplace_back(tps);
+    }
+    res = t.GetTopTokenPairs(3, sequencesTokenPairs);
+    EXPECT_EQ(3, res.size());
+    EXPECT_EQ(4, res[0].count);
+    EXPECT_EQ(4, res[1].count);
+    EXPECT_EQ(3, res[2].count);
 }
 

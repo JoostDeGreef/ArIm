@@ -89,7 +89,7 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPai
     std::unordered_set<TokenPair,TokenPair::HashFunction> tokenPairs;
     TokenPair tp;
     std::vector<const TokenPair*> topN(n,&tp); // list of high counts, lowest at back()
-    auto CollectPairs = [&tokenPairs,&topN](TokenPairSet sequenceTokenPairs)
+    auto CollectPairs = [&tokenPairs,&topN,&tp](const TokenPairSet & sequenceTokenPairs)
     {
         for(const auto & tokenPair : sequenceTokenPairs)
         {
@@ -98,14 +98,15 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPai
             {
                 res.first->count += tokenPair.count;
             }
-            if(topN.back()->count < res.first->count)
+            if(topN.back()->count < res.first->count || topN.back() == &(*res.first))
             {
                 // the tokenpair might already be in the top 5, remove it first
                 for(auto iter=topN.begin();iter<topN.end();++iter)
                 {
-                    if(*iter == &tokenPair)
+                    if(*iter == &(*res.first))
                     {
                         topN.erase(iter);
+                        topN.push_back(&tp);
                         break;
                     }
                 }
@@ -113,7 +114,7 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPai
                 {
                     if(res.first->count > (*iter)->count)
                     {
-                        topN.insert(iter, &tokenPair);
+                        topN.insert(iter, &(*res.first));
                         topN.pop_back();
                         break;
                     }
