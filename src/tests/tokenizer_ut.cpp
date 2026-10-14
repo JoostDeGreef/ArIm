@@ -23,7 +23,7 @@ protected:
 TEST_F(TokenizerTest, CreateTokenPairsForSequence)
 {
     Tokenizer t;
-    std::vector<Token::data_type> sequence;
+    std::vector<Token::Data> sequence;
     TokenPairSet res = t.CreateTokenPairsForSequence(sequence);
     EXPECT_TRUE(res.empty());
     sequence.push_back(0);
@@ -52,7 +52,7 @@ TEST_F(TokenizerTest, CreateTokenPairsForSequence)
 TEST_F(TokenizerTest, CreateTokenPairsForSequences)
 {
     Tokenizer t;
-    std::vector<std::vector<Token::data_type>> sequences;
+    std::vector<std::vector<Token::Data>> sequences;
     auto res = t.CreateTokenPairsForSequences(sequences);
     EXPECT_EQ(sequences.size(), res.size());
     sequences.push_back({0,0,0,1});
@@ -89,32 +89,32 @@ TEST_F(TokenizerTest, GetTopTokenPairs)
 TEST_F(TokenizerTest, ReplaceTokenPairWithToken)
 {
     Tokenizer t;
-    TokensMap tokens = 
+    t.tokens = 
     {
         {0, Token(0)},
         {1, Token(1)},
         {2, Token(2)},
     };
-    tokens[0].count = 10;
-    tokens[1].count = 20;
-    tokens[2].count = 30;
-    std::vector<Token::data_type> sequence =
+    t.tokens[0].count = 10;
+    t.tokens[1].count = 20;
+    t.tokens[2].count = 30;
+    std::vector<Token::Data> sequence =
     {
         0, 0, 1, 1, 0
     };
     TokenPair tokenPair(2,3);
-    Token::data_type newToken(2);
-    t.ReplaceTokenPairWithToken(tokens,sequence,tokenPair,newToken);
+    Token::Data newToken(2);
+    t.ReplaceTokenPairWithToken(sequence,tokenPair,newToken);
     EXPECT_EQ(5, sequence.size());
-    EXPECT_EQ(10, tokens[0].count);
-    EXPECT_EQ(20, tokens[1].count);
-    EXPECT_EQ(30, tokens[2].count);
+    EXPECT_EQ(10, t.tokens[0].count);
+    EXPECT_EQ(20, t.tokens[1].count);
+    EXPECT_EQ(30, t.tokens[2].count);
     tokenPair = TokenPair(0,1);
-    t.ReplaceTokenPairWithToken(tokens,sequence,tokenPair,newToken);
+    t.ReplaceTokenPairWithToken(sequence,tokenPair,newToken);
     EXPECT_EQ(4, sequence.size());
-    EXPECT_EQ(9, tokens[0].count);
-    EXPECT_EQ(19, tokens[1].count);
-    EXPECT_EQ(31, tokens[2].count);
+    EXPECT_EQ(9, t.tokens[0].count);
+    EXPECT_EQ(19, t.tokens[1].count);
+    EXPECT_EQ(31, t.tokens[2].count);
 }
 
 TEST_F(TokenizerTest, FeedInput)
@@ -122,4 +122,18 @@ TEST_F(TokenizerTest, FeedInput)
     Tokenizer t;
     t.FeedInput("this is a test");
     EXPECT_EQ(7, t.tokens.size());
+    EXPECT_EQ(7, t.sequences.size());
+    t.FeedInput("this is also a test");
+    EXPECT_EQ(9, t.tokens.size());
+    EXPECT_EQ(16, t.sequences.size());
+}
+
+TEST_F(TokenizerTest, OptimizeTokenLength)
+{
+    Tokenizer t;
+    t.FeedInput("this is a test");
+    EXPECT_EQ(7, t.tokens.size()); // 7 uniq characters used
+    EXPECT_EQ(7, t.sequences.size());
+    t.OptimizeTokenLength(100,1); 
+    EXPECT_EQ(5, t.GetUsedTokensCount());
 }

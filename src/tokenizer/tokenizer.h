@@ -11,15 +11,18 @@
 
 typedef std::unordered_set<TokenPair,TokenPair::HashFunction> TokenPairSet;
 typedef std::vector<TokenPair> TokenPairVector;
-typedef std::unordered_map<Token::data_type, Token> TokensMap;
+typedef std::unordered_map<Token::Data, Token> TokensMap;
+typedef std::vector<Token::Data> TokenSequence;
+typedef std::vector<TokenSequence> TokenSequences;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
  *
  * Normal operation steps:
- *   1. Feed input text to the tokenizer.
- *   2. Optimize token length until the maximum token count is reached or no more text is available
- *   3. Calculate token relationships.
+ *   1. Feed input text to the tokenizer
+ *   2. Optimize token length until the maximum (used) token count is reached or no more text is available
+ *   3. Calculate token relationships
+ *   4. Store the results
  */
 class Tokenizer 
 {   
@@ -31,33 +34,46 @@ public:
     Tokenizer& operator=(const Tokenizer&) = delete;
     Tokenizer& operator=(Tokenizer&&) = delete;
 
-    void FeedInput(const std::string& input); // add text to the tokenizer. can be called repeatedly
-    void OptimizeTokenLength(size_t n = 1024); // combine smaller tokens until the list of tokens used reaches n
-    void CalculateTokenRelationships(size_t depth = 5); // store all token relations found in input up to depth 
+    // 1. add text to the tokenizer. can be called repeatedly
+    void FeedInput(const std::string& input); 
+    // 2. combine smaller tokens until the list of tokens used reaches n, in blocks of step.
+    //    lower number of steps gives more accurate result, but takes longer
+    void OptimizeTokenLength(size_t n = 1024, size_t step = 5);
+    // 3. store all token relations found in input up to depth 
+    void CalculateTokenRelationships(size_t depth = 5); 
+    // 4. store token sequences and token relationships to a database
+    void StoreCalculatedDataToDB(const std::string & filename) const;
 
 private:
     // all tokens, intermediate nodes and root nodes
     TokensMap tokens; 
-    Token::data_type nextToken = 0;
+    Token::Data nextToken = 0;
+    size_t empty_tokens_count = 0;
 
     // input data split in token sequences
-    std::vector<std::vector<Token::data_type>> sequences;
+    TokenSequences sequences;
+
+    // the relationship between any token and the n tokens before it
+    std::unordered_map<Token::Data,std::vector<std::unordered_map<Token::Data,size_t>>> tokenRelations;
 
     /*
      *   internal functions
      */
 
+    // return the number of used tokens
+    size_t GetUsedTokensCount() const;
+
     // create all token pairs for one sequence
-    TokenPairSet CreateTokenPairsForSequence(const std::vector<Token::data_type> & sequence) const;
+    TokenPairSet CreateTokenPairsForSequence(const TokenSequence & sequence) const;
 
     // create all tokenpairs for each sequence
-    std::vector<TokenPairSet> CreateTokenPairsForSequences(const std::vector<std::vector<Token::data_type>> & sequences) const;
+    std::vector<TokenPairSet> CreateTokenPairsForSequences(const TokenSequences & sequences) const;
 
     // collect the tokenpairs found in sequences, and report the top n pairs found
     TokenPairVector GetTopTokenPairs(size_t n, const std::vector<TokenPairSet> & sequencesTokenPairs) const;
 
     // replace a tokenpair with a token in sequence and update the tokens count. the new token should already be in tokens
-    void ReplaceTokenPairWithToken(TokensMap & tokens, std::vector<Token::data_type> & sequence, const TokenPair & tokenPair,const Token::data_type newToken) const;
+    void ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenPair & tokenPair,const Token::Data newToken);
 
     // update sequences, sequencesTokenPairs and tokens by merging any pairs found in pairsForMerging 
     void MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs);

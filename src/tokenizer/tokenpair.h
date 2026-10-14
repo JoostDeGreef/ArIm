@@ -7,17 +7,17 @@
 class TokenPair
 {
 public:
-    Token::data_type left = Token::root;
-    Token::data_type right = Token::root;
+    Token::Data left = Token::root;
+    Token::Data right = Token::root;
     mutable uint32_t count = 0;
 
     TokenPair()
     {}
-    TokenPair(const Token::data_type left, const Token::data_type right)
+    TokenPair(const Token::Data left, const Token::Data right)
         : left(left)
         , right(right)
     {}
-    TokenPair(const Token::data_type left, const Token::data_type right, const uint32_t count)
+    TokenPair(const Token::Data left, const Token::Data right, const uint32_t count)
         : left(left)
         , right(right)
         , count(count)
@@ -34,7 +34,7 @@ public:
     {
         size_t operator()(const TokenPair& tokenPair) const
         {
-            constexpr int shift = 8*(sizeof(size_t) - sizeof(Token::data_type));
+            constexpr int shift = 8*(sizeof(size_t) - sizeof(Token::Data));
             return std::hash<size_t>()((size_t)tokenPair.left ^ ((size_t)tokenPair.right << shift));
         }
     };

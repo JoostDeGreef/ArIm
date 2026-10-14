@@ -5,21 +5,21 @@ Token::Token()
     , token(root)
     , left(root)
     , right(root)
-    , type(token_type::Empty)
+    , type(Type::Empty)
 {}
 
-Token::Token(const data_type token)
+Token::Token(const Data token)
     : count(0)
     , token(token)
     , left(root)
     , right(root)
-    , type(token_type::Root)
+    , type(Type::Root)
 {}
 
-Token::Token(const data_type token, const data_type left, const data_type right)
+Token::Token(const Data token, const Data left, const Data right)
     : count(0)
     , token(token)
     , left(left)
     , right(right)
-    , type(token_type::Node)
+    , type(Type::Node)
 {}

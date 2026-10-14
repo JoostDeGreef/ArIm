@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <deque>
 #include <map>
 #include <unordered_set>
 #include <set>
@@ -32,7 +33,7 @@ void Tokenizer::FeedInput(const std::string& input)
     separators['\"'] = true;
     separators['\n'] = true;
     separators['\t'] = true;
-    std::vector<Token::data_type> running;
+    std::vector<Token::Data> running;
     for(uint16_t t: input)
     {
         ++ascii[t].count;
@@ -42,8 +43,12 @@ void Tokenizer::FeedInput(const std::string& input)
             {
                 sequences.emplace_back(running);
             }
-            sequences.emplace_back(std::vector<Token::data_type>{t});
+            sequences.emplace_back(std::vector<Token::Data>{t});
             running.clear();
+        }
+        else
+        {
+            running.emplace_back(t);
         }
     }
     if(!running.empty())
@@ -58,9 +63,15 @@ void Tokenizer::FeedInput(const std::string& input)
         }
     }
     nextToken = 1<<8;
+    empty_tokens_count = 0;
 }
 
-TokenPairSet Tokenizer::CreateTokenPairsForSequence(const std::vector<Token::data_type> & sequence) const
+size_t Tokenizer::GetUsedTokensCount() const
+{
+    return tokens.size() - empty_tokens_count;
+}
+
+TokenPairSet Tokenizer::CreateTokenPairsForSequence(const TokenSequence & sequence) const
 {
     TokenPairSet tokenPairs;
     for(size_t i=0,j=1;j<sequence.size();++i,++j)
@@ -71,7 +82,7 @@ TokenPairSet Tokenizer::CreateTokenPairsForSequence(const std::vector<Token::dat
     return tokenPairs;
 }
 
-std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const std::vector<std::vector<Token::data_type>> & sequences) const
+std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const TokenSequences & sequences) const
 {
     std::vector<TokenPairSet> res;
     res.reserve(sequences.size());
@@ -86,7 +97,7 @@ std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const std::vec
 TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPairSet> & sequencesTokenPairs) const
 {
     // summarize tokenPairs for all sequences
-    std::unordered_set<TokenPair,TokenPair::HashFunction> tokenPairs;
+    TokenPairSet tokenPairs;
     TokenPair tp;
     std::vector<const TokenPair*> topN(n,&tp); // list of high counts, lowest at back()
     auto CollectPairs = [&tokenPairs,&topN,&tp](const TokenPairSet & sequenceTokenPairs)
@@ -137,15 +148,25 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPai
     return res;
 }
 
-void Tokenizer::ReplaceTokenPairWithToken(TokensMap & tokens, std::vector<Token::data_type> & sequence, const TokenPair & tokenPair,const Token::data_type newToken) const
+void Tokenizer::ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenPair & tokenPair,const Token::Data newToken)
 {
     size_t write = 0;
     for(size_t read = 0; read < sequence.size();)
     {
         if(read + 1 < sequence.size() && sequence[read] == tokenPair.left && sequence[read + 1] == tokenPair.right)
         {
-            --tokens.at(tokenPair.left).count;
-            --tokens.at(tokenPair.right).count;
+            auto & left = tokens.at(tokenPair.left);
+            auto & right = tokens.at(tokenPair.right);
+            auto DecreaseTokenCount = [this](Token & t)
+            {
+                if(--t.count == 0)
+                {
+                    ++empty_tokens_count;
+                    t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Empty;
+                }
+            };
+            DecreaseTokenCount(left);
+            DecreaseTokenCount(right);
             ++tokens.at(newToken).count;
             sequence[write++] = newToken;
             read += 2;
@@ -160,7 +181,7 @@ void Tokenizer::ReplaceTokenPairWithToken(TokensMap & tokens, std::vector<Token:
 
 void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs)
 {
-    std::vector<Token::data_type> newTokens;
+    std::vector<Token::Data> newTokens;
     tokens.reserve(tokens.size()+pairsForMerging.size());
     for(const auto & pair: pairsForMerging)
     {
@@ -169,7 +190,7 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
         newTokens.emplace_back(t.token);
     }
     auto MergePairs = [this, &pairsForMerging, &newTokens]
-        (std::vector<Token::data_type> & sequence,TokenPairSet & sequenceTokenPairs)
+        (std::vector<Token::Data> & sequence,TokenPairSet & sequenceTokenPairs)
     {
         auto newToken = newTokens.begin();
         for(const auto & tokenPair : pairsForMerging)
@@ -177,7 +198,7 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
             auto sequenceTokenPairIter = sequenceTokenPairs.find(tokenPair);
             if( sequenceTokenPairIter != sequenceTokenPairs.end() )
             {
-                ReplaceTokenPairWithToken(tokens,sequence,tokenPair,*newToken);
+                ReplaceTokenPairWithToken(sequence,tokenPair,*newToken);
                 sequenceTokenPairs = CreateTokenPairsForSequence(sequence);
             }
             ++newToken;
@@ -195,15 +216,15 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
     }
 }
 
-void Tokenizer::OptimizeTokenLength(size_t n)
+void Tokenizer::OptimizeTokenLength(size_t n, size_t step)
 {
     // sanity check
     assert(nextToken>=(1<<8));
     auto sequencesTokenPairs = CreateTokenPairsForSequences(sequences);
-    while(tokens.size()<n)
+    while(GetUsedTokensCount()<n)
     {
         // todo: have MergeSpecifPairs update topTokenPairs?
-        auto topTokenPairs = GetTopTokenPairs(5, sequencesTokenPairs);
+        auto topTokenPairs = GetTopTokenPairs(step, sequencesTokenPairs);
         if(topTokenPairs.empty())
         {
             break;
@@ -213,6 +234,44 @@ void Tokenizer::OptimizeTokenLength(size_t n)
 }
 
 void Tokenizer::CalculateTokenRelationships(size_t depth)
-{}
+{
+    std::deque<Token::Data> past;
+    // create the data structure for every non-empty token
+    decltype(tokenRelations.begin()->second) mapping;
+    mapping.resize(depth);
+    for(auto & kv : tokens)
+    {
+        auto & token = kv.second;
+        if(token.type != Token::Type::Empty)
+        {
+            tokenRelations.emplace(kv.first,mapping);
+        }
+    }
+    // process all the tokens/token sequences
+    auto ProcessPastTokens = [this](const std::deque<Token::Data> & past)
+    {
+        auto & tokenPast = tokenRelations[past.front()];
+        for(size_t i=1;i<past.size();++i)
+        {
+            tokenPast[i-1].emplace(past[i],0).first->second++;
+        }
+    };
+    for(const auto & sequence : sequences)
+    {
+        for(const auto & token : sequence)
+        {
+            past.emplace_front(token);
+            if(past.size()>depth+1)
+            {
+                past.pop_back();
+            }
+            ProcessPastTokens(past);
+        }
+    }
+}
 
+void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
+{
+    // map the tokens in order, highest count first, for more compact storage in sqlite3
+}
 
