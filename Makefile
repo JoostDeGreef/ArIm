@@ -2,10 +2,11 @@
 AR=ar
 CC=gcc
 CPP=g++
-CFLAGS=-W -Wall
-CPPFLAGS=-W -Wall
+CFLAGS=-W -Wall -std=c17
+CPPFLAGS=-W -Wall -std=c++17
 DEFINES=
-INCLUDE=-I 3rdParty/include -I src/tokenizer
+INCLUDE=3rdParty/include
+PROJECT_INCLUDE=-I src/tokenizer
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 SQLITE=build/3rdParty/sqlite3.o
 
@@ -67,7 +68,7 @@ clean:
 	
 ${SQLITE}: 
 	@mkdir -p $(dir $@)
-	${CC} ${CFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
+	${CC} ${CFLAGS} ${DEFINES} -isystem ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
 
 #
 # generic build rules
@@ -80,19 +81,19 @@ ${SQLITE}:
 .PRECIOUS: build/%.d
 build/%.d: src/%.cpp Makefile
 	@mkdir -p $(dir $@)
-	$(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/%.cpp,build/%.o,$<)' $< -MF $@
+	$(CPP) $(CPPFLAGS) ${DEFINES} -I ${INCLUDE} ${PROJECT_INCLUDE} -MM -MT '$(patsubst src/%.cpp,build/%.o,$<)' $< -MF $@
 
 .PRECIOUS: build/%.o 
 build/%.o: src/%.cpp build/%.d Makefile
 	@mkdir -p $(dir $@)
-	${CPP} ${CPPFLAGS} ${DEFINES} ${INCLUDE} -fPIC -o $@ -c $<
+	${CPP} ${CPPFLAGS} ${DEFINES} -isystem ${INCLUDE} ${PROJECT_INCLUDE} -fPIC -o $@ -c $<
 
 #
 # helper functions
 #
 
 define lnk_file_from_src
-    $(call process_compiler_output,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} ${INCLUDE} -MM -MT '$(patsubst src/tests/%.cpp,build/tests/%,$(patsubst src/%/main.cpp,build/%,$1))' $1 -MF -))
+    $(call process_compiler_output,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} -I ${INCLUDE} ${PROJECT_INCLUDE} -MM -MT '$(patsubst src/tests/%.cpp,build/tests/%,$(patsubst src/%/main.cpp,build/%,$1))' $1 -MF -))
 endef
 define process_compiler_output
 	$(subst :,: OBJECTS += ,$(patsubst build/%,bin/%,$(firstword $1))) \

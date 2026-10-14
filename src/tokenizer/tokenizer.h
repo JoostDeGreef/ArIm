@@ -11,6 +11,7 @@
 
 typedef std::unordered_set<TokenPair,TokenPair::HashFunction> TokenPairSet;
 typedef std::vector<TokenPair> TokenPairVector;
+typedef std::unordered_map<Token::data_type, Token> TokensMap;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
@@ -36,7 +37,7 @@ public:
 
 private:
     // all tokens, intermediate nodes and root nodes
-    std::unordered_map<Token::data_type, Token> tokens; 
+    TokensMap tokens; 
     Token::data_type nextToken = 0;
 
     // input data split in token sequences
@@ -54,6 +55,9 @@ private:
 
     // collect the tokenpairs found in sequences, and report the top n pairs found
     TokenPairVector GetTopTokenPairs(size_t n, const std::vector<TokenPairSet> & sequencesTokenPairs) const;
+
+    // replace a tokenpair with a token in sequence and update the tokens count. the new token should already be in tokens
+    void ReplaceTokenPairWithToken(TokensMap & tokens, std::vector<Token::data_type> & sequence, const TokenPair & tokenPair,const Token::data_type newToken) const;
 
     // update sequences, sequencesTokenPairs and tokens by merging any pairs found in pairsForMerging 
     void MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs);

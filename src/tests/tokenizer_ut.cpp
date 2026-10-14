@@ -86,3 +86,40 @@ TEST_F(TokenizerTest, GetTopTokenPairs)
     EXPECT_EQ(3, res[2].count);
 }
 
+TEST_F(TokenizerTest, ReplaceTokenPairWithToken)
+{
+    Tokenizer t;
+    TokensMap tokens = 
+    {
+        {0, Token(0)},
+        {1, Token(1)},
+        {2, Token(2)},
+    };
+    tokens[0].count = 10;
+    tokens[1].count = 20;
+    tokens[2].count = 30;
+    std::vector<Token::data_type> sequence =
+    {
+        0, 0, 1, 1, 0
+    };
+    TokenPair tokenPair(2,3);
+    Token::data_type newToken(2);
+    t.ReplaceTokenPairWithToken(tokens,sequence,tokenPair,newToken);
+    EXPECT_EQ(5, sequence.size());
+    EXPECT_EQ(10, tokens[0].count);
+    EXPECT_EQ(20, tokens[1].count);
+    EXPECT_EQ(30, tokens[2].count);
+    tokenPair = TokenPair(0,1);
+    t.ReplaceTokenPairWithToken(tokens,sequence,tokenPair,newToken);
+    EXPECT_EQ(4, sequence.size());
+    EXPECT_EQ(9, tokens[0].count);
+    EXPECT_EQ(19, tokens[1].count);
+    EXPECT_EQ(31, tokens[2].count);
+}
+
+TEST_F(TokenizerTest, FeedInput)
+{
+    Tokenizer t;
+    t.FeedInput("this is a test");
+    EXPECT_EQ(7, t.tokens.size());
+}

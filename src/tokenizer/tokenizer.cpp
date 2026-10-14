@@ -137,6 +137,27 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPai
     return res;
 }
 
+void Tokenizer::ReplaceTokenPairWithToken(TokensMap & tokens, std::vector<Token::data_type> & sequence, const TokenPair & tokenPair,const Token::data_type newToken) const
+{
+    size_t write = 0;
+    for(size_t read = 0; read < sequence.size();)
+    {
+        if(read + 1 < sequence.size() && sequence[read] == tokenPair.left && sequence[read + 1] == tokenPair.right)
+        {
+            --tokens.at(tokenPair.left).count;
+            --tokens.at(tokenPair.right).count;
+            ++tokens.at(newToken).count;
+            sequence[write++] = newToken;
+            read += 2;
+        }
+        else
+        {
+            sequence[write++] = sequence[read++];
+        }
+    }
+    sequence.resize(write);
+};
+
 void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs)
 {
     std::vector<Token::data_type> newTokens;
@@ -147,28 +168,7 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
         tokens.emplace(t.token,t);
         newTokens.emplace_back(t.token);
     }
-    auto replaceTokenPairWithToken = [this]
-        (std::vector<Token::data_type> & sequence, const TokenPair & tokenPair,const Token::data_type newToken)
-    {
-        size_t write = 0;
-        for(size_t read = 0; read < sequence.size();)
-        {
-            if(read + 1 < sequence.size() && sequence[read] == tokenPair.left && sequence[read + 1] == tokenPair.right)
-            {
-                --tokens.at(tokenPair.left).count;
-                --tokens.at(tokenPair.right).count;
-                ++tokens.at(newToken).count;
-                sequence[write++] = newToken;
-                read += 2;
-            }
-            else
-            {
-                sequence[write++] = sequence[read++];
-            }
-        }
-        sequence.resize(write);
-    };
-    auto MergePairs = [&replaceTokenPairWithToken, this, &pairsForMerging, &newTokens]
+    auto MergePairs = [this, &pairsForMerging, &newTokens]
         (std::vector<Token::data_type> & sequence,TokenPairSet & sequenceTokenPairs)
     {
         auto newToken = newTokens.begin();
@@ -177,7 +177,7 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
             auto sequenceTokenPairIter = sequenceTokenPairs.find(tokenPair);
             if( sequenceTokenPairIter != sequenceTokenPairs.end() )
             {
-                replaceTokenPairWithToken(sequence,tokenPair,*newToken);
+                ReplaceTokenPairWithToken(tokens,sequence,tokenPair,*newToken);
                 sequenceTokenPairs = CreateTokenPairsForSequence(sequence);
             }
             ++newToken;
