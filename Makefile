@@ -1,12 +1,13 @@
 # tools
 AR=ar
+ARFLAGS=cr
 CC=gcc
 CPP=g++
 CFLAGS=-W -Wall -std=c17
 CPPFLAGS=-W -Wall -std=c++17
 DEFINES=
 INCLUDE=3rdParty/include
-PROJECT_INCLUDE=-I src/tokenizer
+PROJECT_INCLUDE=-I src/tokenizer -I src/db
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 SQLITE=build/3rdParty/sqlite3.o
 
@@ -20,6 +21,7 @@ CPP_FILES := $(wildcard src/*.cpp src/*/*.cpp)
 OBJ_FILES := $(patsubst src/%.cpp,build/%.o,$(CPP_FILES))
 TST_FILES := $(patsubst src/tests/%.cpp,bin/tests/%,$(wildcard src/tests/*.cpp))
 EXE_FILES := $(patsubst src/%/main.cpp,bin/%,$(wildcard src/*/main.cpp))
+LIB_FILES := $(patsubst src/%,build/lib/%.a,$(filter-out src/tests $(patsubst src/%/main.cpp,src/%,$(wildcard src/*/main.cpp)),$(wildcard src/*)))
 DEP_FILES := $(OBJ_FILES:.o=.d)
 LNK_FILES := $(patsubst bin/tests/%,build/tests/%.lnk,$(TST_FILES)) $(patsubst bin/%,build/%/main.lnk,$(EXE_FILES))
 
@@ -88,6 +90,11 @@ build/%.o: src/%.cpp build/%.d Makefile
 	@mkdir -p $(dir $@)
 	${CPP} ${CPPFLAGS} ${DEFINES} -isystem ${INCLUDE} ${PROJECT_INCLUDE} -fPIC -o $@ -c $<
 
+.PRECIOUS: build/lib/%.a 
+build/lib/%.a: build/%.d Makefile
+	@mkdir -p $(dir $@)
+	${AR} ${ARFLAGS} $@ -c $<
+
 #
 # helper functions
 #
@@ -112,7 +119,7 @@ build/%/main.lnk: src/%/main.cpp Makefile
 	@echo Creating $@
 	@echo $(call lnk_file_from_src,$<) | awk '{$$1=$$1;print}' > $@
 
-.PRECIOUS: build/%
+.PRECIOUS: bin/%
 bin/%: build/%/main.lnk $${LDLIBS} $${OBJECTS} Makefile
 	@mkdir -p $(dir $@)
 	${CPP} ${CPPFLAGS} -o $@ ${LDLIBS} ${OBJECTS} 

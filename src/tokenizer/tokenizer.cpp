@@ -25,16 +25,17 @@ void Tokenizer::FeedInput(const std::string& input)
         ascii[t] = Token(t);
     }
     std::array<bool, 256> separators= {};
-    separators[' '] = true;
-    separators['.'] = true;
-    separators[';'] = true;
-    separators[':'] = true;
-    separators['\''] = true;
-    separators['\"'] = true;
-    separators['\n'] = true;
-    separators['\t'] = true;
+    // cast to uint8_t, just in case the system uses signed char. 
+    separators[(uint8_t)' '] = true;
+    separators[(uint8_t)'.'] = true;
+    separators[(uint8_t)';'] = true;
+    separators[(uint8_t)':'] = true;
+    separators[(uint8_t)'\''] = true;
+    separators[(uint8_t)'\"'] = true;
+    separators[(uint8_t)'\n'] = true;
+    separators[(uint8_t)'\t'] = true;
     std::vector<Token::Data> running;
-    for(uint16_t t: input)
+    for(uint8_t t: input)
     {
         ++ascii[t].count;
         if(separators[t])
