@@ -1,4 +1,4 @@
-#include <sqlite3.h>
+#include "db.h"
 
 #include <gtest/gtest.h>
 using namespace testing;
@@ -18,11 +18,7 @@ protected:
 
 TEST_F(SQLiteTest, SmokeTest)
 {
-    sqlite3 *db;
-	
-    sqlite3_open("/tmp/smoketest.db", &db);
-    ASSERT_NE(nullptr, db);
+    SQLite::DB db;
 
-    sqlite3_close(db);
+    db.Open("/tmp/smoketest.db",false);
 }
-

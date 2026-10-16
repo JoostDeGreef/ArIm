@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <format>
 
 #include "internal/DataType.h"
 #include "internal/Query.h"

@@ -68,7 +68,7 @@ namespace SQLite
     template<typename... Arguments>
     std::string FormatArgs(const std::string & fmt, const Arguments&... args)
     {
-        return fmt::format(fmt, args...);
+        return std::format(fmt, args...);
     }
 
     std::shared_ptr<State> m_state;
