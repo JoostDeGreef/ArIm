@@ -4,7 +4,8 @@ class Query::State
 {
 public:
     State(sqlite3* db, sqlite3_stmt* statement, bool eof,bool owner = true,int columnCount = -1)
-        : m_db(db)
+        : m_fieldNames()
+        , m_db(db)
         , m_statement(statement)
         , m_eof(eof)
         , m_owner(owner)
@@ -45,12 +46,12 @@ public:
         m_statement = nullptr;
     }
 
-    sqlite3_stmt* m_statement;
+    std::vector<std::string> m_fieldNames;
     sqlite3* m_db;
+    sqlite3_stmt* m_statement;
     bool m_eof;
     bool m_owner;
     int m_columnCount;
-    std::vector<std::string> m_fieldNames;
 };
 
 

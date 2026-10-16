@@ -2,15 +2,17 @@
 
 namespace SQLite
 {
-    inline void ThrowError(const char* szError,int code = 42)
+    inline void ThrowError(const char* /*szError*/,int code = 42)
     {
+        (void)code;
 // sqlite3_free !
 //        throw CppSQLite3Exception(code, (char*)szError, DONT_DELETE_MSG);
         throw exception();
     }
-    inline void ThrowError(sqlite3* db, int code = 42)
+    inline void ThrowError(sqlite3* /*db*/, int code = 42)
     {
-        const char* szError = sqlite3_errmsg(db);
+        (void)code;
+//        const char* szError = sqlite3_errmsg(db);
 //        throw CppSQLite3Exception(code, (char*)szError, DONT_DELETE_MSG);
         throw exception();
     }

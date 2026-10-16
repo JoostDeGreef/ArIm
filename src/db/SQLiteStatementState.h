@@ -50,9 +50,8 @@ public:
         }
     }
 
-
-    sqlite3_stmt* m_statement;
     sqlite3* m_db;
+    sqlite3_stmt* m_statement;
     bool m_eof;
     int m_columnCount;
 };
