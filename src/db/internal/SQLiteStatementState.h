@@ -1,5 +1,15 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
+#include "sqlite3.h"
+
+#include "../SQLiteStatement.h"
+#include "../SQLiteSupport.h"
+
+using namespace SQLite;
+
 class Statement::State
 {
 public:

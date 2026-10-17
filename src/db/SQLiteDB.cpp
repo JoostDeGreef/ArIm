@@ -2,17 +2,20 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-
 #include "sqlite3.h"
+
 #include "SQLiteDB.h"
+
+#include "internal/SQLiteDBState.h"
+#include "internal/SQLiteQueryState.h"
+#include "internal/SQLiteStatementState.h"
+
+using namespace std;
 
 using namespace SQLite;
 
-#include "SQLiteSupport.h"
-#include "SQLiteDBState.h"
-#include "SQLiteQueryState.h"
-#include "SQLiteStatementState.h"
+const std::string DB::memoryDB(":memory:");
+const std::string DB::tempDB("");
 
 DB::DB()
     : m_state(std::make_shared<State>())

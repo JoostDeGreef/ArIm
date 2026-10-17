@@ -1,3 +1,44 @@
+#
+# Info:
+#
+# This makefile expects the following directly layout:
+# .
+# ├── 3rdParty
+# │   ├── bin
+# |   |   ├── sqlite3 -> ../sqlite.build/sqlite3
+# │   │   └── ... etc: more links to 3rdParty executables
+# │   ├── <3rdPart tool>        : src dir
+# │   ├── <3rdPart tool>.build  : build dir
+# │   ├── include
+# │   │   ├── sqlite3.h -> ../sqlite.build/sqlite3.h
+# │   │   └── ... etc: more links to 3rdParty headers
+# │   ├── lib
+# │   │   ├── libgtest.a -> ../googletest.build/lib/libgtest.a
+# │   │   └── ... etc: more links to 3rdParty libraries
+# │   ├── Makefile
+# │   ├── README.md
+# │   └── src
+# │       └── sqlite3.c -> ../sqlite.build/sqlite3.c
+# ├── build : build dir
+# ├── data  : data for tests
+# ├── Makefile
+# ├── README.md
+# └── src
+#     ├── tests : unit tests src, one file per test 
+#     └── <other> : executable / library. All directories become libraries.
+#                   If a main.cpp is present, it's linked as exe together with the library.
+#
+# All .cpp files generate an .o file (standard object file)
+# All .o filed generate an .d file (defining dependencies)
+# All executable/test targets get a .lnk file with their build rules
+#
+# to build:
+#   make debug/release
+#
+# to run the unit tests:
+#   make debug/release run
+#
+
 # tools
 AR=ar
 ARFLAGS=cr
@@ -9,7 +50,10 @@ DEFINES=
 INCLUDE=3rdParty/include
 PROJECT_INCLUDE=-I src/tokenizer -I src/db
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
-SQLITE=build/3rdParty/sqlite3.o
+# build sqlite locally
+#SQLITE=build/3rdParty/sqlite3.o
+# use 3rdParty sqlite build
+SQLITE=3rdParty/lib/sqlite3.o
 
 # Add .d / .lnk to Make's recognized suffixes.
 SUFFIXES += .d .lnk
@@ -17,7 +61,7 @@ SUFFIXES += .d .lnk
 # make $$ work
 .SECONDEXPANSION:
 
-NEED_LINK_RULES := $(filter-out message clean,$(MAKECMDGOALS))
+NEED_FILE_GENERATION := $(filter-out message clean,$(MAKECMDGOALS))
 
 #
 # Issue a warning if people just execute this makefile without any idea of what havock it can wreak.
@@ -41,7 +85,6 @@ debug:
 	@echo "Starting DEBUG build..."
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
 
-	
 clean:
 	@rm -rf bin build
 	@find . -name "*~" -exec rm -f "{}" \;
@@ -77,6 +120,10 @@ TST_FILES := $(patsubst src/tests/%.cpp,bin/%,$(wildcard src/tests/*.cpp))
 EXE_FILES := $(patsubst src/%/main.cpp,bin/%,$(wildcard src/*/main.cpp))
 
 #
+# expensive targets, which should only be ran when the target is actually needed
+#
+
+#
 # dependency files
 #
 .PRECIOUS: build/%.d
@@ -105,17 +152,24 @@ build/$(notdir $(patsubst %/,%,$1))/$(notdir $(patsubst %/,%,$1)).a: $$(patsubst
 	@$$(AR) $$(ARFLAGS) $$@ $$^
 endef
 #$(info LIB_DIRS=[$(LIB_DIRS)])
-ifneq ($(strip $(NEED_LINK_RULES)),)
+ifneq ($(strip $(NEED_FILE_GENERATION)),)
 $(foreach d,$(LIB_DIRS),$(eval $(call LIB_template,$(d))))
 endif
 
 -include $(DEP_FILES)
 
-# inputs target, lnk file, cpp file
+#
+# functions for .lnk file generation
+#
+
+# entry point, calls gcc to generate the dependencies and generate lnk files for executables/tests
+# inputs: target, lnk file, cpp file
 # $(info create_lnk_file: input=[$1] [$2] [$3])
 define create_lnk_file
 $(call create_object_file,$1,$2,$3,$(shell $(CPP) $(CPPFLAGS) ${DEFINES} -I ${INCLUDE} ${PROJECT_INCLUDE} -MM -MT $1 $3 -MF -))
 endef
+
+# subfunction which generates the formatting for the .lnk file
 # inputs: target, lnk file, cpp file, dependencies
 # $(info create_object_file: input=[$1] [$2] [$3] [$4])
 define create_object_file
@@ -123,12 +177,22 @@ $1: $(patsubst build/%.lnk,build/%.o,$2) $(call convert_dependencies_to_librarie
 	@mkdir -p $$(dir $$@)
 	@echo "Linking $$@"
 	@$${CPP} $${CPPFLAGS} -o $$@ $(patsubst build/%.lnk,build/%.o,$2) $(call convert_dependencies_to_libraries,$4) $(call collect_special_libs,$4,$3)
+
+.PRECIOUS: $2
+$2: $3 Makefile
+	@mkdir -p $(dir $2)
+	@echo Creating $2
+	@$$(file >$2,$$(call create_lnk_file,$1,$2,$3))
 endef
+
+# subfunction which converts dependencies in other directories to library dependencies
 # inputs: dependecies cpp file
 # $(info convert_dependencies_to_libraries: input=[$1] [$2])
 define convert_dependencies_to_libraries
 $(sort $(foreach d,$(LIB_DIRS),$(if $(filter $(d)%,$(filter src/%,$(1))),build/$(notdir $(patsubst %/,%,$(d)))/$(notdir $(patsubst %/,%,$(d))).a)))
 endef
+
+# subfunction which adds 3rdparty libraries if the headers are used
 # inputs: dependecies 
 # $(info collect_special_libs: input=[$1] [$2])
 define collect_special_libs
@@ -136,27 +200,17 @@ $(if $(filter %/sqlite3.h,$1),${SQLITE}) \
 $(if $(filter src/tests/%,$2),${GTEST_LIBS}) 
 endef
 
-ifneq ($(strip $(NEED_LINK_RULES)),)
+#
+# generate the lnk files if not available yet
+#
+ifneq ($(strip $(NEED_FILE_GENERATION)),)
 $(foreach f,$(TST_LNK_FILES) $(EXE_LNK_FILES),\
   $(if $(wildcard $(f)),,\
     $(shell mkdir -p $(dir $(f)))\
     $(file >$(f),$(call create_lnk_file,\
-      $(patsubst build/%.lnk,bin/%,$(f)),\
+      $(patsubst build/tests/%.lnk,bin/%,$(patsubst build/%/main.lnk,bin/%,$(f))),\
       $(f),\
-      $(patsubst build/%.lnk,src/%.cpp,$(f))))))
-
-.PRECIOUS: build/%/main.lnk
-build/%/main.lnk: src/%/main.cpp Makefile
-	@mkdir -p $(dir $@)
-	@echo Creating $@
-	@$(file >$@,$(call create_lnk_file,$(patsubst build/%/main.lnk,bin/%,$@),$@,$<))
-
-.PRECIOUS: build/tests/%.lnk
-build/tests/%.lnk: src/tests/%.cpp Makefile
-	@mkdir -p $(dir $@)
-	@echo Creating $@
-	@$(file >$@,$(call create_lnk_file,$(patsubst build/tests/%.lnk,bin/%,$@),$@,$<))
-
+      $(patsubst build/tests/%.lnk,src/tests/%.cpp,$(patsubst build/%/main.lnk,src/%/main.cpp,$(f)))))))
 endif
 
 -include $(TST_LNK_FILES)

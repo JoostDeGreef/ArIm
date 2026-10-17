@@ -12,7 +12,7 @@
             "name": "Debug tokenizer_ut",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/tests/tokenizer_ut",
+            "program": "${workspaceFolder}/bin/tokenizer_UT",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
@@ -25,7 +25,16 @@
             "name": "Debug tokenizer_ut (LLDB)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/tests/tokenizer_ut",
+            "program": "${workspaceFolder}/bin/tokenizer_UT",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build debug mode (makefile)"
+        },
+        {
+            "name": "Debug db_ut (LLDB)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/db_UT",
             "args": [],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"

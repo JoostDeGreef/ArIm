@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cinttypes>
+#include <memory>
+#include <string>
+#include <vector>
+
 namespace SQLite
 {
     class Query
@@ -38,6 +43,9 @@ namespace SQLite
         bool IsEOF() const;
         void NextRow();
         void Finalize();
+
+        // todo add begin/end to allow easy iteration over rows
+
     private:
         std::shared_ptr<State> m_state;
     };

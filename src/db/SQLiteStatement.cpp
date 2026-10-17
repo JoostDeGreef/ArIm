@@ -2,16 +2,18 @@
 #include <string>
 #include <vector>
 
+#include "sqlite3.h"
+
+#include "SQLiteDB.h"
+#include "SQLiteSupport.h"
+#include "SQLiteStatement.h"
+
+#include "internal/SQLiteQueryState.h"
+#include "internal/SQLiteStatementState.h"
+
 using namespace std;
 
-#include "sqlite3.h"
-#include "SQLiteDB.h"
-
 using namespace SQLite;
-
-#include "SQLiteSupport.h"
-#include "SQLiteStatementState.h"
-#include "SQLiteQueryState.h"
 
 Statement::Statement(std::shared_ptr<State>&& state)
     : m_state(state)

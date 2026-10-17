@@ -3,15 +3,16 @@
 #include <vector>
 #include <algorithm>
 
+#include "sqlite3.h"
+
+#include "SQLiteDB.h"
+#include "SQLiteSupport.h"
+
+#include "internal/SQLiteQueryState.h"
+
 using namespace std;
 
-#include "sqlite3.h"
-#include "SQLiteDB.h"
-
 using namespace SQLite;
-
-#include "SQLiteSupport.h"
-#include "SQLiteQueryState.h"
 
 Query::Query()
     : m_state(make_shared<State>(nullptr,nullptr,true))

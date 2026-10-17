@@ -19,7 +19,7 @@ sqlite:
 sqlite.build: sqlite
 	rm -rf sqlite.build
 	mkdir -p sqlite.build
-	(cd sqlite.build; sh ../sqlite/configure && make sqlite3 sqlite3.c) # || rm -rf sqlite.build
+	(cd sqlite.build; sh ../sqlite/configure && make sqlite3 sqlite3.c sqlite3.o) # || rm -rf sqlite.build
 
 bin: sqlite.build
 	rm -rf bin
@@ -38,6 +38,7 @@ lib: googletest.build
 	ln -sf ../googletest.build/lib/libgmock_main.a lib/
 	ln -sf ../googletest.build/lib/libgtest.a lib/
 	ln -sf ../googletest.build/lib/libgtest_main.a lib/
+	ln -sf ../sqlite.build/sqlite3.o lib/
 
 include: googletest.build sqlite.build
 	rm -rf include
