@@ -14,6 +14,7 @@ typedef std::vector<TokenPair> TokenPairVector;
 typedef std::unordered_map<Token::Data, Token> TokensMap;
 typedef std::vector<Token::Data> TokenSequence;
 typedef std::vector<TokenSequence> TokenSequences;
+typedef std::unordered_map<Token::Data,Token::Data,Token::HashFunction> TokensMappedByCount;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
@@ -78,4 +79,7 @@ private:
     // update sequences, sequencesTokenPairs and tokens by merging any pairs found in pairsForMerging 
     void MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs);
 
+    // create a mapping for all used tokens to new token values starting at 0, with decreasing count
+    // this is usefull when storing to db, where smaller numbers migth take less storage size
+    TokensMappedByCount CreateMappingForTokensByCount() const;
 };

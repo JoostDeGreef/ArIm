@@ -48,7 +48,7 @@ CFLAGS=-W -Wall -std=c17
 CPPFLAGS=-W -Wall -std=c++20
 DEFINES=
 INCLUDE=3rdParty/include
-PROJECT_INCLUDE=-I src/tokenizer -I src/db
+PROJECT_INCLUDE=-I src/tokenizer -I src/db -I src/sqlinq
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 # build sqlite locally
 #SQLITE=build/3rdParty/sqlite3.o
@@ -145,7 +145,7 @@ build/%.o: src/%.cpp build/%.d Makefile
 # archive files
 #
 define LIB_template
-build/$(notdir $(patsubst %/,%,$1))/$(notdir $(patsubst %/,%,$1)).a: $$(patsubst src/%.cpp,build/%.o,$$(filter-out $1main.cpp,$$(wildcard $1*.cpp))) $$(if $$(filter src/db/,$1),$$(SQLITE))
+build/$(notdir $(patsubst %/,%,$1))/$(notdir $(patsubst %/,%,$1)).a: $$(patsubst src/%.cpp,build/%.o,$$(filter-out $1main.cpp,$$(wildcard $1*.cpp))) $$(if $$(filter src/db/,$1),$$(SQLITE)) $$(if $$(filter src/sqlinq/,$1),$$(SQLITE))
 	@mkdir -p $$(dir $$@)
 	@rm -f $@
 	@echo "Archiving ... to $$@"

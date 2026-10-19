@@ -18,6 +18,15 @@ public:
         , m_busyTimeoutMs(6000)
     {}
 
+    ~State()
+    {
+        if (m_db)
+        {
+            sqlite3_close_v2(m_db);
+            m_db = nullptr;
+        }
+    }
+
     void Check()
     {
         if (nullptr == m_db)
@@ -44,7 +53,8 @@ public:
     {
         if (m_db)
         {
-            sqlite3_close(m_db);
+            int ret = sqlite3_close_v2(m_db);
+            ThrowErrorIfNotOK(m_db, ret);
             m_db = nullptr;
         }
     }

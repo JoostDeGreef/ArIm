@@ -6,6 +6,7 @@
 #include <set>
 
 #include "tokenizer.h"
+#include "db.h"
 
 using namespace std;
 
@@ -271,8 +272,36 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
     }
 }
 
+TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
+{
+    std::vector<Token::Data> sortedTokens;
+    for(const auto & token: tokens)
+    {
+        if(token.second.type != Token::Type::Empty)
+        {
+            sortedTokens.emplace_back(token.first);
+        }
+    }
+    std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const Token::Data & a, const Token::Data & b)
+    {
+        auto count_a = tokens.find(a)->second.count;
+        auto count_b = tokens.find(b)->second.count;
+        return count_a > count_b;
+    });
+    std::unordered_map<Token::Data,Token::Data,Token::HashFunction> mappedTokens;
+    for(Token::Data i=0;i<sortedTokens.size();++i)
+    {
+        mappedTokens.emplace(sortedTokens[i],i);
+    }
+    return mappedTokens;
+}
+
 void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
 {
     // map the tokens in order, highest count first, for more compact storage in sqlite3
+    SQLite::DB db;
+    db.Open(filename, false);
+
+    TokensMappedByCount mappedTokens = CreateMappingForTokensByCount();
 }
 

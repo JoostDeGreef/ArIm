@@ -19,11 +19,11 @@ Query::Query()
 {}
 
 Query::Query(std::shared_ptr<State>&& state)
-    : m_state(state)
+    : m_state(std::move(state))
 {}
 
 Query::Query(Query&& query)
-    : m_state(query.m_state)
+    : m_state(std::move(query.m_state))
 {}
 
 Query::Query(const Query& query)
@@ -36,6 +36,15 @@ Query::~Query()
 Query& Query::operator = (const Query& query)
 {
     m_state = query.m_state;
+    return *this;
+}
+
+Query& Query::operator = (Query&& query)
+{
+    if (this != &query)
+    {
+        m_state = std::move(query.m_state);
+    }
     return *this;
 }
 
@@ -88,7 +97,15 @@ void Query::NextRow()
 
 void Query::Finalize()
 {
-    m_state->Finalize();
+    if (m_state)
+    {
+        m_state->Finalize();
+    }
+}
+
+Rows Query::GetRows()
+{
+    return Rows(Query(*this));
 }
 
 int Query::FieldIndex(const std::string& fieldName) const

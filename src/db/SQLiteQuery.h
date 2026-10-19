@@ -3,10 +3,13 @@
 #include <cinttypes>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace SQLite
 {
+    class Rows;
+
     class Query
     {
     public:
@@ -19,6 +22,7 @@ namespace SQLite
         ~Query();
 
         Query& operator = (const Query& query);
+        Query& operator = (Query&& query);
 
         int GetFieldCount() const;
         const std::vector<std::string>& GetFieldNames() const;
@@ -44,10 +48,39 @@ namespace SQLite
         void NextRow();
         void Finalize();
 
-        // todo add begin/end to allow easy iteration over rows
-
+        Rows GetRows();
     private:
         std::shared_ptr<State> m_state;
     };
+
+    class Rows
+    {
+    public:
+        explicit Rows(Query&& query) : m_query(std::move(query)) {}
+        Rows(const Rows&) = delete;
+        Rows& operator=(const Rows&) = delete;
+        Rows(Rows&&) = default;
+        Rows& operator=(Rows&&) = default;
+        ~Rows() { m_query.Finalize(); }
+
+        class Iterator
+        {
+        public:
+            explicit Iterator(Query* query) : m_query(query) {}
+            Query& operator*() const { return *m_query; }
+            Query* operator->() const { return m_query; }
+            Iterator& operator++() { m_query->NextRow(); return *this; }
+            bool operator!=(const Iterator& other) const
+            { return m_query != other.m_query && (m_query == nullptr || !m_query->IsEOF()); }
+        private:
+            Query* m_query;
+        };
+
+        Iterator begin() { return m_query.IsEOF() ? Iterator(nullptr) : Iterator(&m_query); }
+        Iterator end() { return Iterator(nullptr); }
+    private:
+        Query m_query;
+    };
+
 } // namespace SQLite
 

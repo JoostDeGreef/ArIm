@@ -16,11 +16,11 @@ using namespace std;
 using namespace SQLite;
 
 Statement::Statement(std::shared_ptr<State>&& state)
-    : m_state(state)
+    : m_state(std::move(state))
 {}
 
 Statement::Statement(Statement&& statement)
-    : m_state(statement.m_state)
+    : m_state(std::move(statement.m_state))
 {}
 
 Statement::Statement(const Statement& statement)
@@ -37,6 +37,15 @@ Statement::~Statement()
 Statement& Statement::operator = (const Statement& statement)
 {
     m_state = statement.m_state;
+    return *this;
+}
+
+Statement& Statement::operator = (Statement&& statement)
+{
+    if (this != &statement)
+    {
+        m_state = std::move(statement.m_state);
+    }
     return *this;
 }
 
@@ -144,5 +153,8 @@ void Statement::Reset()
 
 void Statement::Finalize()
 {
-    m_state->Finalize();
+    if (m_state)
+    {
+        m_state->Finalize();
+    }
 }

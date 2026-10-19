@@ -17,6 +17,7 @@ namespace SQLite
         ~Statement();
 
         Statement& operator = (const Statement& statement);
+        Statement& operator = (Statement&& statement);
 
         int ExecDML();
         Query ExecQuery();

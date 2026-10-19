@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
+#include <functional>
 
 class Token
 {
@@ -29,4 +31,13 @@ public:
     Data left;
     Data right;
     Type type;
+
+    struct HashFunction
+    {
+        size_t operator()(const Token& token) const
+        {
+            return std::hash<size_t>()(token.token);
+        }
+    };
+
 };

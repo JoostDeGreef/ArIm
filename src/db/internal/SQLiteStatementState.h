@@ -26,7 +26,11 @@ public:
     }
     ~State()
     {
-        Finalize();
+        if (m_statement)
+        {
+            sqlite3_finalize(m_statement);
+            m_statement = nullptr;
+        }
     }
 
     void Check()
