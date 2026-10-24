@@ -11,10 +11,11 @@
 
 typedef std::unordered_set<TokenPair,TokenPair::HashFunction> TokenPairSet;
 typedef std::vector<TokenPair> TokenPairVector;
-typedef std::unordered_map<Token::Data, Token> TokensMap;
 typedef std::vector<Token::Data> TokenSequence;
 typedef std::vector<TokenSequence> TokenSequences;
-typedef std::unordered_map<Token::Data,Token::Data,Token::HashFunction> TokensMappedByCount;
+typedef std::unordered_map<Token::Data, Token> TokensMap;
+typedef std::unordered_map<Token::Data, Token::Data, Token::HashFunction> TokensMappedByCount;
+typedef std::unordered_map<Token::Data, size_t> TokenCountMap;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
@@ -55,7 +56,7 @@ private:
     TokenSequences sequences;
 
     // the relationship between any token and the n tokens before it
-    std::unordered_map<Token::Data,std::vector<std::unordered_map<Token::Data,size_t>>> tokenRelations;
+    std::unordered_map<Token::Data,std::vector<TokenCountMap>> tokenRelations;
 
     /*
      *   internal functions
@@ -78,6 +79,9 @@ private:
 
     // update sequences, sequencesTokenPairs and tokens by merging any pairs found in pairsForMerging 
     void MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs);
+
+    // get the originat text sequence the token represents
+    std::string GetTokenTextSequence(const Token::Data & token) const;
 
     // create a mapping for all used tokens to new token values starting at 0, with decreasing count
     // this is usefull when storing to db, where smaller numbers migth take less storage size

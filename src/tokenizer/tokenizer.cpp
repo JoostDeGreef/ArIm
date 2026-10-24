@@ -244,7 +244,7 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
     for(auto & kv : tokens)
     {
         auto & token = kv.second;
-        if(token.type != Token::Type::Empty)
+        if(token.count)
         {
             tokenRelations.emplace(kv.first,mapping);
         }
@@ -296,12 +296,78 @@ TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
     return mappedTokens;
 }
 
+std::string Tokenizer::GetTokenTextSequence(const Token::Data & token) const
+{
+    std::string text;
+    std::vector<Token::Data> pending{token};
+    while(!pending.empty())
+    {
+        const Token & current = tokens.at(pending.back());
+        pending.pop_back();
+        if(current.type == Token::Type::Root)
+        {
+            text.push_back(static_cast<char>(current.token));
+        }
+        else if(current.type == Token::Type::Node)
+        {
+            pending.push_back(current.right);
+            pending.push_back(current.left);
+        }
+    }
+    return text;
+}
+
 void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
 {
     // map the tokens in order, highest count first, for more compact storage in sqlite3
     SQLite::DB db;
     db.Open(filename, false);
 
+    db.ExecDML("DROP TABLE IF EXISTS Tokens");
+    db.ExecDML("DROP TABLE IF EXISTS TokenRelations");
+    
+    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Count INTEGER, Sequence TEXT);");
+    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY ASC, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
+
     TokensMappedByCount mappedTokens = CreateMappingForTokensByCount();
+    db.BeginTransaction();
+    auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Count, Sequence) VALUES(?, ?, ?);");
+    for(const auto & kv : mappedTokens)
+    {
+        auto & token = tokens.at(kv.first);
+        long long int count = token.count;
+        if(count)
+        {
+            std::string sequence = GetTokenTextSequence(kv.first);
+            tokensStatement.Bind(1,kv.second);
+            tokensStatement.Bind(2,count);
+            tokensStatement.Bind(3,sequence);
+            tokensStatement.ExecDML();
+        }
+    }
+    db.CommitTransaction();
+
+    db.BeginTransaction();
+    auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedToken, Count) VALUES(NULL, ?, ?, ?, ?);");
+    for(const auto & tokenRelation : tokenRelations)
+    {
+        auto mappedTokenData = mappedTokens.at(tokenRelation.first);
+        tokenRelationsStatement.Bind(1,mappedTokenData);
+        for(size_t depth = 0; depth < tokenRelation.second.size(); ++depth)
+        {
+            tokenRelationsStatement.Bind(2,(long long int)depth);
+            auto & depthRelations = tokenRelation.second[depth];
+            for(const auto & depthRelation : depthRelations)
+            {
+                auto mappedConnectedTokenData = mappedTokens.at(depthRelation.first);
+                long long int count = depthRelation.second;
+                tokenRelationsStatement.Bind(3,mappedConnectedTokenData);
+                tokenRelationsStatement.Bind(4,count);
+                tokenRelationsStatement.ExecDML();
+            }
+        }
+    }
+    db.CommitTransaction();
+    db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
 }
 

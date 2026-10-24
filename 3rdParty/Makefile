@@ -19,7 +19,7 @@ sqlite:
 sqlite.build: sqlite
 	rm -rf sqlite.build
 	mkdir -p sqlite.build
-	(cd sqlite.build; sh ../sqlite/configure && make sqlite3 sqlite3.c sqlite3.o) # || rm -rf sqlite.build
+	(cd sqlite.build; sh ../sqlite/configure --fts5 --enable-readline && make sqlite3 sqlite3.c sqlite3.o) # || rm -rf sqlite.build
 
 bin: sqlite.build
 	rm -rf bin
