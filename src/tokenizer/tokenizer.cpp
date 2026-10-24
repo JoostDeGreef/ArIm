@@ -61,7 +61,11 @@ void Tokenizer::FeedInput(const std::string& input)
     {
         if(t.count)
         {
-            tokens.emplace(t.token, t);
+            auto iter = tokens.emplace(t.token, t);
+            if( !iter.second )
+            {
+                iter.first->second.count += t.count;
+            }
         }
     }
     nextToken = 1<<8;

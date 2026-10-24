@@ -48,11 +48,8 @@ CFLAGS=-W -Wall -std=c17
 CPPFLAGS=-W -Wall -std=c++20
 DEFINES=
 INCLUDE=3rdParty/include
-PROJECT_INCLUDE=-I src/tokenizer -I src/db -I src/sqlinq
+PROJECT_INCLUDE=$(patsubst src/%,-I src/% ,$(filter-out src/tests/,$(wildcard src/*/)))
 GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
-# build sqlite locally
-#SQLITE=build/3rdParty/sqlite3.o
-# use 3rdParty sqlite build
 SQLITE=3rdParty/lib/sqlite3.o
 
 # Add .d / .lnk to Make's recognized suffixes.
@@ -68,8 +65,8 @@ NEED_FILE_GENERATION := $(filter-out message clean,$(MAKECMDGOALS))
 #
 message:
 	@echo "Build 3rd party libs by typeing 'make 3rdParty', then:"
-	@echo "Either use 'make release' or 'make debug', possibly augmented with 'run'"
-	@echo "(so 'make debug run' would run a debug build of the unit tests)"
+	@echo "Either use 'make release' or 'make debug', possibly augmented with 'run_UTs' or 'run_tests'"
+	@echo "(so 'make debug run_UTs' would run a debug build of the unit tests)"
 	@echo "Any other argument: Here Be Dragons"
 
 release:
@@ -87,7 +84,7 @@ debug:
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
 
 clean:
-	@rm -rf bin build
+	@rm -rf bin build *.out
 	@find . -name "*~" -exec rm -f "{}" \;
 
 #
@@ -98,11 +95,6 @@ clean:
 3rdParty:
 	@echo "Building 3rdParty libraries..."
 	@make -C 3rdParty all
-
-${SQLITE}: 3rdParty/src/sqlite3.c
-	@mkdir -p $(dir $@)
-	@echo "Compiling $< to $@"
-	@${CC} ${CFLAGS} ${DEFINES} -isystem ${INCLUDE} -fPIC -o ${SQLITE} -c 3rdParty/src/sqlite3.c
 
 #
 # turn all CPP files into objects / executables and create a dependency file for all
@@ -267,16 +259,28 @@ all: tests executables
 .PHONY: tests	
 tests: ${TST_FILES}
 
-.PHONY: run
-run: ${TST_FILES}
+.PHONY: run_UTs
+run_UTs: ${TST_FILES}
 	@for test in $^; do \
 		echo "=== $$test ==="; \
 		$$test --gtest_catch_exceptions=0 || exit 1; \
 	done
-	
+
 #
 # build tools
 #	
 .PHONY: executables
 executables: ${EXE_FILES}
+
+.PHONY: run_tests
+run_tests: ${EXE_FILES}
+	bin/tokenizer -S -o /tmp/all.sq3 data/*.txt
+
+.PHONY: run_callgrind
+run_callgrind: ${EXE_FILES}
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/tokenizer -o /tmp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+
+.PHONY: run_benchmark
+run_benchmark: ${EXE_FILES}
+	bin/tokenizer -S -o /tmp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
