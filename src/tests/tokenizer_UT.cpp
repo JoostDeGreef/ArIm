@@ -89,26 +89,26 @@ TEST_F(TokenizerTest, CreateTokenPairsForSequences)
 TEST_F(TokenizerTest, GetTopTokenPairs)
 {
     Tokenizer t;
-    std::vector<TokenPairSet> sequencesTokenPairs;
-    auto res = t.GetTopTokenPairs(2, sequencesTokenPairs);
-    EXPECT_EQ(0, res.size());
-    {
-        TokenPairSet tps{TokenPair(0,0,2),TokenPair(0,1,1),TokenPair(0,2,4)};
-        sequencesTokenPairs.emplace_back(tps);
-    }
-    res = t.GetTopTokenPairs(2, sequencesTokenPairs);
-    EXPECT_EQ(2, res.size());
-    EXPECT_EQ(4, res[0].count);
-    EXPECT_EQ(2, res[1].count);
-    {
-        TokenPairSet tps{TokenPair(0,0,2),TokenPair(0,1,1),TokenPair(0,3,3)};
-        sequencesTokenPairs.emplace_back(tps);
-    }
-    res = t.GetTopTokenPairs(3, sequencesTokenPairs);
-    EXPECT_EQ(3, res.size());
-    EXPECT_EQ(4, res[0].count);
-    EXPECT_EQ(4, res[1].count);
-    EXPECT_EQ(3, res[2].count);
+    TokenPairSet tokenPairs;
+    auto res = t.GetTopTokenPairs(2, tokenPairs);
+    EXPECT_TRUE(res.empty());
+
+    tokenPairs.insert(TokenPair(0,0,2));
+    tokenPairs.insert(TokenPair(0,1,1));
+    tokenPairs.insert(TokenPair(0,2,4));
+    res = t.GetTopTokenPairs(2, tokenPairs);
+    ASSERT_EQ(2, res.size());
+    EXPECT_EQ(TokenPair(0,2,4), res[0]);
+    EXPECT_EQ(TokenPair(0,0,2), res[1]);
+
+    tokenPairs.insert(TokenPair(0,3,4));
+    tokenPairs.insert(TokenPair(1,0,3));
+    res = t.GetTopTokenPairs(3, tokenPairs);
+    ASSERT_EQ(3, res.size());
+    EXPECT_EQ(TokenPair(0,3,4), res[0]);
+    EXPECT_EQ(TokenPair(0,2,4), res[1]);
+    EXPECT_EQ(TokenPair(1,0,3), res[2]);
+    EXPECT_EQ(tokenPairs.size(), t.GetTopTokenPairs(tokenPairs.size() + 1, tokenPairs).size());
 }
 
 TEST_F(TokenizerTest, ReplaceTokenPairWithToken)

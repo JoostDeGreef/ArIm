@@ -10,6 +10,7 @@
 #include "tokenpair.h"
 
 typedef std::unordered_set<TokenPair,TokenPair::HashFunction> TokenPairSet;
+typedef std::vector<TokenPairSet> TokenPairSets;
 typedef std::vector<TokenPair> TokenPairVector;
 typedef std::vector<Token::Data> TokenSequence;
 typedef std::vector<TokenSequence> TokenSequences;
@@ -69,16 +70,19 @@ private:
     TokenPairSet CreateTokenPairsForSequence(const TokenSequence & sequence) const;
 
     // create all tokenpairs for each sequence
-    std::vector<TokenPairSet> CreateTokenPairsForSequences(const TokenSequences & sequences) const;
+    TokenPairSets CreateTokenPairsForSequences(const TokenSequences & sequences) const;
 
-    // collect the tokenpairs found in sequences, and report the top n pairs found
-    TokenPairVector GetTopTokenPairs(size_t n, const std::vector<TokenPairSet> & sequencesTokenPairs) const;
+    // create all tokenpairs for all sequences
+    TokenPairSet FlattenSequenceTokenPairs(const TokenPairSets & tokenPairSets);
+
+    // collect the tokenpairs found in all sequences, and report the top n pairs found
+    TokenPairVector GetTopTokenPairs(size_t n, const TokenPairSet & tokenPairSet) const;
 
     // replace a tokenpair with a token in sequence and update the tokens count. the new token should already be in tokens
     void ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenPair & tokenPair,const Token::Data newToken);
 
-    // update sequences, sequencesTokenPairs and tokens by merging any pairs found in pairsForMerging 
-    void MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs);
+    // update sequences, sequencesTokenPairs, flattenedTokenPairs and tokens by merging any pairs found in pairsForMerging 
+    void MergeSpecificPairs(const TokenPairVector & pairsForMerging, TokenPairSets & sequencesTokenPairs, TokenPairSet & flattenedTokenPairs);
 
     // get the originat text sequence the token represents
     std::string GetTokenTextSequence(const Token::Data & token) const;

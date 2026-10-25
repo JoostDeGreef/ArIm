@@ -100,57 +100,22 @@ std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const TokenSeq
     return res;
 }
 
-TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const std::vector<TokenPairSet> & sequencesTokenPairs) const
+TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const TokenPairSet & tokenPairSet) const
 {
-    // summarize tokenPairs for all sequences
-    TokenPairSet tokenPairs;
-    TokenPair tp;
-    std::vector<const TokenPair*> topN(n,&tp); // list of high counts, lowest at back()
-    auto CollectPairs = [&tokenPairs,&topN,&tp](const TokenPairSet & sequenceTokenPairs)
+    TokenPairVector res(tokenPairSet.begin(),tokenPairSet.end());
+    std::sort(res.begin(),res.end(),[&](const TokenPair & a, const TokenPair & b)
     {
-        for(const auto & tokenPair : sequenceTokenPairs)
+        if( a.count != b.count )
         {
-            auto res = tokenPairs.emplace(tokenPair);
-            if(!res.second)
-            {
-                res.first->count += tokenPair.count;
-            }
-            if(topN.back()->count < res.first->count || topN.back() == &(*res.first))
-            {
-                // the tokenpair might already be in the top 5, remove it first
-                for(auto iter=topN.begin();iter<topN.end();++iter)
-                {
-                    if(*iter == &(*res.first))
-                    {
-                        topN.erase(iter);
-                        topN.push_back(&tp);
-                        break;
-                    }
-                }
-                for(auto iter=topN.begin();iter<topN.end();++iter)
-                {
-                    if(res.first->count > (*iter)->count)
-                    {
-                        topN.insert(iter, &(*res.first));
-                        topN.pop_back();
-                        break;
-                    }
-                }
-            }
+            return a.count > b.count;
         }
-    };
-    for(const auto & sequenceTokenPairs: sequencesTokenPairs)
-    {
-        CollectPairs(sequenceTokenPairs);
-    }
-    TokenPairVector res;
-    for(const auto p: topN)
-    {
-        if(p->count)
+        if( a.left != b.left )
         {
-            res.emplace_back(*p);
+            return a.left > b.left;
         }
-    }
+        return a.right > b.right;
+    });
+    res.resize(std::min(n, res.size()));
     return res;
 }
 
@@ -185,7 +150,10 @@ void Tokenizer::ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenP
     sequence.resize(write);
 };
 
-void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std::vector<TokenPairSet> & sequencesTokenPairs)
+void Tokenizer::MergeSpecificPairs(
+       const TokenPairVector & pairsForMerging, 
+       TokenPairSets & sequencesTokenPairs,
+       TokenPairSet & flattenedTokenPairs)
 {
     std::vector<Token::Data> newTokens;
     tokens.reserve(tokens.size()+pairsForMerging.size());
@@ -195,17 +163,51 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
         tokens.emplace(t.token,t);
         newTokens.emplace_back(t.token);
     }
-    auto MergePairs = [this, &pairsForMerging, &newTokens]
+    auto MergePairs = [this, &pairsForMerging, &newTokens, &flattenedTokenPairs]
         (std::vector<Token::Data> & sequence,TokenPairSet & sequenceTokenPairs)
     {
+        auto AdjustFlattenedCount = [&flattenedTokenPairs](const TokenPair & pair, bool add)
+        {
+            auto iter = flattenedTokenPairs.find(pair);
+            if(add)
+            {
+                if(iter == flattenedTokenPairs.end())
+                {
+                    flattenedTokenPairs.emplace(pair);
+                }
+                else
+                {
+                    iter->count += pair.count;
+                }
+            }
+            else if(iter != flattenedTokenPairs.end())
+            {
+                if(iter->count <= pair.count)
+                {
+                    flattenedTokenPairs.erase(iter);
+                }
+                else
+                {
+                    iter->count -= pair.count;
+                }
+            }
+        };
         auto newToken = newTokens.begin();
         for(const auto & tokenPair : pairsForMerging)
         {
             auto sequenceTokenPairIter = sequenceTokenPairs.find(tokenPair);
             if( sequenceTokenPairIter != sequenceTokenPairs.end() )
             {
+                for(const auto & pair : sequenceTokenPairs)
+                {
+                    AdjustFlattenedCount(pair, false);
+                }
                 ReplaceTokenPairWithToken(sequence,tokenPair,*newToken);
                 sequenceTokenPairs = CreateTokenPairsForSequence(sequence);
+                for(const auto & pair : sequenceTokenPairs)
+                {
+                    AdjustFlattenedCount(pair, true);
+                }
             }
             ++newToken;
         }
@@ -222,20 +224,37 @@ void Tokenizer::MergeSpecificPairs(const TokenPairVector & pairsForMerging, std:
     }
 }
 
+TokenPairSet Tokenizer::FlattenSequenceTokenPairs(const TokenPairSets & tokenPairSets)
+{
+    TokenPairSet res;
+    for(const auto & tokenPairSet : tokenPairSets)
+    {
+        for(const auto & tokenPair : tokenPairSet)
+        {
+            auto iter = res.emplace(tokenPair);
+            if( !iter.second )
+            {
+                iter.first->count += tokenPair.count;
+            }
+        }
+    }
+    return res;
+}
+
 void Tokenizer::OptimizeTokenLength(size_t n, size_t step)
 {
     // sanity check
     assert(nextToken>=(1<<8));
     auto sequencesTokenPairs = CreateTokenPairsForSequences(sequences);
+    auto flattenedTokenPairs = FlattenSequenceTokenPairs(sequencesTokenPairs);
     while(GetUsedTokensCount()<n)
     {
-        // todo: have MergeSpecifPairs update topTokenPairs?
-        auto topTokenPairs = GetTopTokenPairs(step, sequencesTokenPairs);
+        auto topTokenPairs = GetTopTokenPairs(step, flattenedTokenPairs);
         if(topTokenPairs.empty())
         {
             break;
         }
-        MergeSpecificPairs(topTokenPairs, sequencesTokenPairs);        
+        MergeSpecificPairs(topTokenPairs, sequencesTokenPairs, flattenedTokenPairs);        
     }
 }
 
