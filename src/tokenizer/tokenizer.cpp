@@ -328,25 +328,28 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
 
 TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
 {
-    std::vector<Token::Data> sortedTokens;
+    struct TokenDataCount
+    {
+        Token::Data data;
+        size_t count;
+    };
+    std::vector<TokenDataCount> sortedTokens;
     sortedTokens.reserve(GetUsedTokensCount());
     for(const auto & token: tokens)
     {
         if(token.second.type != Token::Type::Empty)
         {
-            sortedTokens.emplace_back(token.first);
+            sortedTokens.emplace_back(token.first,tokens.find(token.first)->second.count);
         }
     }
-    std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const Token::Data & a, const Token::Data & b)
+    std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const TokenDataCount & a, const TokenDataCount & b)
     {
-        auto count_a = tokens.find(a)->second.count;
-        auto count_b = tokens.find(b)->second.count;
-        return count_a > count_b;
+        return a.count > b.count;
     });
     std::unordered_map<Token::Data,Token::Data,Token::HashFunction> mappedTokens;
     for(Token::Data i=0;i<sortedTokens.size();++i)
     {
-        mappedTokens.emplace(sortedTokens[i],i);
+        mappedTokens.emplace(sortedTokens[i].data,i);
     }
     return mappedTokens;
 }
