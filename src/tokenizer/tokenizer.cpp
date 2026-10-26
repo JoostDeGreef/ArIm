@@ -103,7 +103,8 @@ std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const TokenSeq
 TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const TokenPairSet & tokenPairSet) const
 {
     TokenPairVector res(tokenPairSet.begin(),tokenPairSet.end());
-    std::sort(res.begin(),res.end(),[&](const TokenPair & a, const TokenPair & b)
+    const auto count = std::min(n, res.size());
+    const auto better = [](const TokenPair & a, const TokenPair & b)
     {
         if( a.count != b.count )
         {
@@ -114,8 +115,9 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const TokenPairSet & token
             return a.left > b.left;
         }
         return a.right > b.right;
-    });
-    res.resize(std::min(n, res.size()));
+    };
+    std::partial_sort(res.begin(),res.begin() + count,res.end(),better);
+    res.resize(count);
     return res;
 }
 
