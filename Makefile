@@ -69,23 +69,31 @@ message:
 	@echo "(so 'make debug run_UTs' would run a debug build of the unit tests)"
 	@echo "Any other argument: Here Be Dragons"
 
-release:
+temp:
+	@mkdir -p $@
+
+build: 
+	@mkdir -p $@
+
+release: | temp build
 	@if [ -f build/.debug ]; then echo "Previous compilation was not RELEASE, cleaning up..."; make clean; fi
-	@mkdir -p build
 	@touch build/.release
 	@echo "Starting RELEASE build..."
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" all
 
-debug:
+debug: | temp build
 	@if [ -f build/.release ]; then echo "Previous compilation was not DEBUG, cleaning up..."; make clean; fi
-	@mkdir -p build
 	@touch build/.debug
 	@echo "Starting DEBUG build..."
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
 
 clean:
-	@rm -rf bin build *.out temp
+	@rm -rf bin build *.out
 	@find . -name "*~" -exec rm -f "{}" \;
+
+proper: clean
+	@rm -f temp
+	@make -C 3rdParty clean
 
 #
 # call the makefile for the 3dParty libraries
