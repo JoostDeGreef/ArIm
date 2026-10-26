@@ -124,7 +124,7 @@ int main(int argc, char ** argv)
       });
       try 
       {
-        for (int i = 0; i<inputFiles.size();++i) 
+        for (size_t i = 0; i<inputFiles.size();++i) 
         {
           const auto & filename = inputFiles[i];
           size_t inputSize = 0;

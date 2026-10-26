@@ -8,6 +8,7 @@
         }
     ],
     "configurations": [
+        
         {
             "name": "Debug tokenizer_ut",
             "type": "cppdbg",
@@ -36,6 +37,15 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/db_UT",
             "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build debug mode (makefile)"
+        },
+        {
+            "name": "Debug tokenizer (LLDB)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/tokenizer",
+            "args": ["-S","-o","${workspaceFolder}/temp/alice_in_wonderland.sq3","${workspaceFolder}/data/alice_in_wonderland.txt"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"
         }

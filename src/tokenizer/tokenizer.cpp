@@ -121,42 +121,12 @@ TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const TokenPairSet & token
     return res;
 }
 
-void Tokenizer::ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenPair & tokenPair,const Token::Data newToken)
-{
-    size_t write = 0;
-    for(size_t read = 0; read < sequence.size();)
-    {
-        if(read + 1 < sequence.size() && sequence[read] == tokenPair.left && sequence[read + 1] == tokenPair.right)
-        {
-            auto & left = tokens.at(tokenPair.left);
-            auto & right = tokens.at(tokenPair.right);
-            auto DecreaseTokenCount = [this](Token & t)
-            {
-                if(--t.count == 0)
-                {
-                    ++empty_tokens_count;
-                    t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Empty;
-                }
-            };
-            DecreaseTokenCount(left);
-            DecreaseTokenCount(right);
-            ++tokens.at(newToken).count;
-            sequence[write++] = newToken;
-            read += 2;
-        }
-        else
-        {
-            sequence[write++] = sequence[read++];
-        }
-    }
-    sequence.resize(write);
-};
-
 void Tokenizer::MergeSpecificPairs(
        const TokenPairVector & pairsForMerging, 
        TokenPairSets & sequencesTokenPairs,
        TokenPairSet & flattenedTokenPairs)
 {
+    // create new tokens for the pairsForMerging
     std::vector<Token::Data> newTokens;
     tokens.reserve(tokens.size()+pairsForMerging.size());
     for(const auto & pair: pairsForMerging)
@@ -165,55 +135,109 @@ void Tokenizer::MergeSpecificPairs(
         tokens.emplace(t.token,t);
         newTokens.emplace_back(t.token);
     }
-    auto MergePairs = [this, &pairsForMerging, &newTokens, &flattenedTokenPairs]
-        (std::vector<Token::Data> & sequence,TokenPairSet & sequenceTokenPairs)
+    auto DecreaseTokenCount = [&](Token & t)
     {
-        auto AdjustFlattenedCount = [&flattenedTokenPairs](const TokenPair & pair, bool add)
+        if(--t.count == 0)
         {
-            auto iter = flattenedTokenPairs.find(pair);
-            if(add)
-            {
-                if(iter == flattenedTokenPairs.end())
-                {
-                    flattenedTokenPairs.emplace(pair);
-                }
-                else
-                {
-                    iter->count += pair.count;
-                }
-            }
-            else if(iter != flattenedTokenPairs.end())
-            {
-                if(iter->count <= pair.count)
-                {
-                    flattenedTokenPairs.erase(iter);
-                }
-                else
-                {
-                    iter->count -= pair.count;
-                }
-            }
-        };
-        auto newToken = newTokens.begin();
-        for(const auto & tokenPair : pairsForMerging)
-        {
-            auto sequenceTokenPairIter = sequenceTokenPairs.find(tokenPair);
-            if( sequenceTokenPairIter != sequenceTokenPairs.end() )
-            {
-                for(const auto & pair : sequenceTokenPairs)
-                {
-                    AdjustFlattenedCount(pair, false);
-                }
-                ReplaceTokenPairWithToken(sequence,tokenPair,*newToken);
-                sequenceTokenPairs = CreateTokenPairsForSequence(sequence);
-                for(const auto & pair : sequenceTokenPairs)
-                {
-                    AdjustFlattenedCount(pair, true);
-                }
-            }
-            ++newToken;
+            ++empty_tokens_count;
+            t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Empty;
         }
     };
+    auto IncreaseTokenCount = [&](Token & t)
+    {
+        if(t.count++ == 0)
+        {
+            --empty_tokens_count;
+            t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Node;
+        }
+    };
+    // merge the pair from pairsForMerging when found in sequence/sequenceTokenPairs
+    auto ReplaceOnePair = [&](const TokenPair & tokenPair,const Token::Data newToken, TokenSequence & sequence, TokenPairVector & add, TokenPairVector & remove)
+    {
+        add.clear();
+        remove.clear();
+        for(size_t i = 1;i<sequence.size();++i)
+        {
+            if(sequence[i-1] == tokenPair.left && sequence[i-0] == tokenPair.right)
+            {
+                // update token counts
+                DecreaseTokenCount(tokens.at(sequence[i-1]));
+                DecreaseTokenCount(tokens.at(sequence[i-0]));
+                IncreaseTokenCount(tokens.at(newToken));
+                // store pairs to remove
+                if(i>1)
+                {
+                    remove.emplace_back(sequence[i-2],sequence[i-1]);
+                }
+                remove.emplace_back(sequence[i-1], sequence[i-0]);
+                if(i+1<sequence.size())
+                {
+                    remove.emplace_back(sequence[i-0],sequence[i+1]);
+                }
+                // update sequence
+                sequence[i-1] = newToken;
+                sequence.erase(sequence.begin()+i);
+                // store pairs to add
+                if(i>1)
+                {
+                    add.emplace_back(sequence[i-2],sequence[i-1]);
+                }
+                if(i<sequence.size())
+                {
+                    add.emplace_back(sequence[i-1],sequence[i-0]);
+                }
+                return;
+            }
+        }
+        assert(false); // should not be reached. sequenceTokenPairs promised the token pair exists!
+    };
+    auto AddPairs = [](const TokenPairVector & pairsToAdd, TokenPairSet & tokenPairs)
+    {
+        for(const auto & pairToAdd : pairsToAdd)
+        {
+            auto iter = tokenPairs.emplace(pairToAdd);
+            ++iter.first->count; 
+        }
+    };
+    auto RemovePairs = [](const TokenPairVector & pairsToRemove, TokenPairSet & tokenPairs)
+    {
+        for(const auto & pairToRemove : pairsToRemove)
+        {
+            auto iter = tokenPairs.find(pairToRemove);
+            if(iter != tokenPairs.end())
+            {
+                if( --iter->count == 0 )
+                {
+                    tokenPairs.erase(iter);
+                }
+            }
+        }
+    };
+    TokenPairVector add;
+    TokenPairVector remove;
+    auto MergePairs = [&](TokenSequence & sequence, TokenPairSet & sequenceTokenPairs)
+    {
+        // check if any of the tokenPairs is used in this sequence
+        for(size_t i=0; i<pairsForMerging.size(); ++i)
+        {
+            const auto & pair = pairsForMerging[i];
+            const auto & newToken = newTokens[i];
+            auto iter = sequenceTokenPairs.find(pair);
+            while(iter != sequenceTokenPairs.end())
+            {
+                // replace one pair in sequence, and see what it affects
+                ReplaceOnePair(pair,newToken,sequence,add,remove);
+                // add/remove the affected pairs from sequenceTokenPairs and flattenedTokenPairs
+                AddPairs(add, sequenceTokenPairs);
+                AddPairs(add, flattenedTokenPairs);
+                RemovePairs(remove, sequenceTokenPairs);
+                RemovePairs(remove, flattenedTokenPairs);
+                // check if there is another match of this pair
+                iter = sequenceTokenPairs.find(pair);
+            }
+        }
+    };
+    // iterate over all sequences/sequenceTokenPairs
     auto sequencesIter = sequences.begin();
     auto sequencesTokenPairsIter = sequencesTokenPairs.begin();
     for(;

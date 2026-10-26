@@ -111,37 +111,6 @@ TEST_F(TokenizerTest, GetTopTokenPairs)
     EXPECT_EQ(tokenPairs.size(), t.GetTopTokenPairs(tokenPairs.size() + 1, tokenPairs).size());
 }
 
-TEST_F(TokenizerTest, ReplaceTokenPairWithToken)
-{
-    Tokenizer t;
-    t.tokens = 
-    {
-        {0, Token(0)},
-        {1, Token(1)},
-        {2, Token(2)},
-    };
-    t.tokens[0].count = 10;
-    t.tokens[1].count = 20;
-    t.tokens[2].count = 30;
-    std::vector<Token::Data> sequence =
-    {
-        0, 0, 1, 1, 0
-    };
-    TokenPair tokenPair(2,3);
-    Token::Data newToken(2);
-    t.ReplaceTokenPairWithToken(sequence,tokenPair,newToken);
-    EXPECT_EQ(5, sequence.size());
-    EXPECT_EQ(10, t.tokens[0].count);
-    EXPECT_EQ(20, t.tokens[1].count);
-    EXPECT_EQ(30, t.tokens[2].count);
-    tokenPair = TokenPair(0,1);
-    t.ReplaceTokenPairWithToken(sequence,tokenPair,newToken);
-    EXPECT_EQ(4, sequence.size());
-    EXPECT_EQ(9, t.tokens[0].count);
-    EXPECT_EQ(19, t.tokens[1].count);
-    EXPECT_EQ(31, t.tokens[2].count);
-}
-
 TEST_F(TokenizerTest, FeedInput)
 {
     Tokenizer t;

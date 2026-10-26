@@ -84,7 +84,7 @@ debug:
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
 
 clean:
-	@rm -rf bin build *.out
+	@rm -rf bin build *.out temp
 	@find . -name "*~" -exec rm -f "{}" \;
 
 #
@@ -274,13 +274,16 @@ executables: ${EXE_FILES}
 
 .PHONY: run_tests
 run_tests: ${EXE_FILES}
-	bin/tokenizer -S -o /tmp/all.sq3 data/*.txt
+	@mkdir -p temp
+	bin/tokenizer -S -o temp/all.sq3 data/*.txt
 
 .PHONY: run_callgrind
 run_callgrind: ${EXE_FILES}
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/tokenizer -o /tmp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+	@mkdir -p temp
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/tokenizer -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_benchmark
 run_benchmark: ${EXE_FILES}
-	bin/tokenizer -S -o /tmp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+	@mkdir -p temp
+	bin/tokenizer -S -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 

@@ -78,9 +78,6 @@ private:
     // collect the tokenpairs found in all sequences, and report the top n pairs found
     TokenPairVector GetTopTokenPairs(size_t n, const TokenPairSet & tokenPairSet) const;
 
-    // replace a tokenpair with a token in sequence and update the tokens count. the new token should already be in tokens
-    void ReplaceTokenPairWithToken(TokenSequence & sequence, const TokenPair & tokenPair,const Token::Data newToken);
-
     // update sequences, sequencesTokenPairs, flattenedTokenPairs and tokens by merging any pairs found in pairsForMerging 
     void MergeSpecificPairs(const TokenPairVector & pairsForMerging, TokenPairSets & sequencesTokenPairs, TokenPairSet & flattenedTokenPairs);
 
