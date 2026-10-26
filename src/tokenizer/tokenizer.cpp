@@ -217,6 +217,11 @@ void Tokenizer::MergeSpecificPairs(
     TokenPairVector remove;
     auto MergePairs = [&](TokenSequence & sequence, TokenPairSet & sequenceTokenPairs)
     {
+        // no pairs left in this sequence, done!
+        if(sequenceTokenPairs.empty())
+        {
+            return;
+        }
         // check if any of the tokenPairs is used in this sequence
         for(size_t i=0; i<pairsForMerging.size(); ++i)
         {
@@ -324,6 +329,7 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
 TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
 {
     std::vector<Token::Data> sortedTokens;
+    sortedTokens.reserve(GetUsedTokensCount());
     for(const auto & token: tokens)
     {
         if(token.second.type != Token::Type::Empty)
