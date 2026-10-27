@@ -67,25 +67,29 @@ message:
 	@echo "Build 3rd party libs by typeing 'make 3rdParty', then:"
 	@echo "Either use 'make release' or 'make debug', possibly augmented with 'run_UTs' or 'run_tests'"
 	@echo "(so 'make debug run_UTs' would run a debug build of the unit tests)"
+	@echo "Also usefull: 'make profile run_callgrind' to generate a callgrind.out file"
 	@echo "Any other argument: Here Be Dragons"
 
-temp:
-	@mkdir -p $@
-
-build: 
-	@mkdir -p $@
-
-release: | temp build
-	@if [ -f build/.debug ]; then echo "Previous compilation was not RELEASE, cleaning up..."; make clean; fi
+release:
+	@if [ -f build/.debug ] || [ -f build/.profile ]; then echo "Previous compilation was not RELEASE, cleaning up..."; make clean; fi
+	@mkdir -p temp build
 	@touch build/.release
 	@echo "Starting RELEASE build..."
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" all
 
-debug: | temp build
-	@if [ -f build/.release ]; then echo "Previous compilation was not DEBUG, cleaning up..."; make clean; fi
+debug:
+	@if [ -f build/.release ] || [ -f build/.profile ]; then echo "Previous compilation was not DEBUG, cleaning up..."; make clean; fi
+	@mkdir -p temp build
 	@touch build/.debug
 	@echo "Starting DEBUG build..."
 	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
+
+profile:
+	@if [ -f build/.release ] || [ -f build/.debug ]; then echo "Previous compilation was not PROFILE, cleaning up..."; make clean; fi
+	@mkdir -p temp build
+	@touch build/.profile
+	@echo "Starting PROFILE build..."
+	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g -O2" all
 
 clean:
 	@rm -rf bin build *.out

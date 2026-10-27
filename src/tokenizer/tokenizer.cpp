@@ -339,7 +339,7 @@ TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
     {
         if(token.second.type != Token::Type::Empty)
         {
-            sortedTokens.emplace_back(token.first,tokens.find(token.first)->second.count);
+            sortedTokens.emplace_back(token.first, token.second.count);
         }
     }
     std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const TokenDataCount & a, const TokenDataCount & b)
@@ -381,11 +381,15 @@ void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
     SQLite::DB db;
     db.Open(filename, false);
 
+    db.ExecDML("PRAGMA journal_mode = WAL;");
+    db.ExecDML("PRAGMA synchronous = NORMAL;");
+    db.ExecDML("PRAGMA temp_store = MEMORY;");
+
     db.ExecDML("DROP TABLE IF EXISTS Tokens");
     db.ExecDML("DROP TABLE IF EXISTS TokenRelations");
     
-    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Count INTEGER, Sequence TEXT);");
-    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY ASC, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
+    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Count INTEGER, Sequence TEXT) WITHOUT ROWID;");
+    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
 
     TokensMappedByCount mappedTokens = CreateMappingForTokensByCount();
     db.BeginTransaction();
@@ -426,6 +430,7 @@ void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
         }
     }
     db.CommitTransaction();
+
     db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
 }
 
