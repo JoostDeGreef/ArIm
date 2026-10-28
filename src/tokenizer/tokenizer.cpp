@@ -170,7 +170,9 @@ void Tokenizer::MergeTopTokenPairs(const TokenPairSequence & pairsForMerging, To
         {
             Token::Data t = tokens.size();
             iter.first->first.token = t;
-            ++tokens.emplace(t,left,right).first->count;
+            //++tokens.emplace(t,left,right).first->count;
+            tokens.emplace(t,left,right);
+            ++unusedTokensCount;
         }
     };
     // merge the pair from pairsForMerging when found in sequence/sequenceTokenPairs
