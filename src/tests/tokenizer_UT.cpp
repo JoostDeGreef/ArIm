@@ -200,6 +200,28 @@ TEST_F(TokenizerTest, GetTokenTextSequence)
     EXPECT_EQ("abc", t.GetTokenTextSequence(257));
 }
 
+TEST_F(TokenizerTest, OptimizeTokenLengthMergesRepeatedPair)
+{
+    Tokenizer t;
+    t.FeedInput("abab");
+
+    EXPECT_EQ(2, t.GetUsedTokensCount());
+    EXPECT_EQ(1, t.sequences.size());
+    EXPECT_EQ(4, t.sequences.front().size());
+
+    t.OptimizeTokenLength(3, 1);
+
+    // "ab" occurs twice, so it should be merged into one token.
+    EXPECT_EQ(1, t.GetUsedTokensCount());
+    EXPECT_EQ(1, t.sequences.size());
+    EXPECT_EQ(1, t.sequences.front().size());
+
+    const auto& sequence = t.sequences.front();
+
+    // The merged token must expand back to the original text.
+    EXPECT_EQ("abab", t.GetTokenTextSequence(sequence[0]));
+}
+
 TEST_F(TokenizerTest, FullFunctionalityTest)
 {
     std::string randomFilename = GetRandomFilename("sq3");
