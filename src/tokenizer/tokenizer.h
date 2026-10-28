@@ -34,6 +34,7 @@ class Tokenizer
 {   
 public:
     Tokenizer();
+    Tokenizer(SQLite::DB & db);
     // This class stores a lot of data, so we don't want to allow copying or moving it around.
     Tokenizer(const Tokenizer&) = delete;
     Tokenizer(Tokenizer&&) = delete;
@@ -54,6 +55,8 @@ public:
     void StoreCalculatedDataToDB(SQLite::DB & db) const;
 
 private:
+    // todo: combine tokens and tokenRelations. don't forget to measure the timing.
+
     // all tokens, intermediate nodes and root nodes
     TokensSet tokens; 
     size_t unusedTokensCount = 0;
@@ -82,4 +85,8 @@ private:
 
     // get the original text sequence the token represents
     std::string GetTokenTextSequence(const Token & token) const;
+
+    // load the data from db
+    void LoadDataFromDB(SQLite::DB & db);
+
 };

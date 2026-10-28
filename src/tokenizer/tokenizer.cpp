@@ -11,7 +11,7 @@ using namespace std;
 
 Tokenizer::Tokenizer()
     : tokens()
-    , unusedTokensCount(256)
+    , unusedTokensCount(0)
 {
     // insert the 256 ascii chars, and indicate which characters are special
     std::array<bool, 256> separators= {};
@@ -27,6 +27,12 @@ Tokenizer::Tokenizer()
     {
         tokens.emplace(t).first->separator = separators[t];
     }
+    unusedTokensCount = tokens.size();
+}
+
+Tokenizer::Tokenizer(SQLite::DB & db)
+{
+    LoadDataFromDB(db);
 }
 
 void Tokenizer::FeedInput(const std::string& input)
@@ -198,28 +204,30 @@ void Tokenizer::MergeTopTokenPairs(const TokenPairSequence & pairsForMerging, To
                 if(i>1) AddOnePair(sequence[i-2],sequence[i-1],sequenceIndex);
                 if(i<sequence.size()) AddOnePair(sequence[i-1],sequence[i-0],sequenceIndex);
                 // remove only one pair, so return here
-                return;
+                return true;
             }
         }
-        assert(false); // should not be reached. sequenceTokenPairs promised the token pair exists!
+        return false;
     };
-    // todo:
-    // run this multiple times until nothing changes. 
-    // the newly added tokenpairs could be the ones we are replacing
-    for(const auto & pairForMerging : pairsForMerging)
+    bool changed;
+    do
     {
-        auto iter = tokenPairs.find(pairForMerging);
-        if(iter == tokenPairs.end())
+        changed = false;
+        for(const auto & pairForMerging : pairsForMerging)
         {
-            continue;
+            auto iter = tokenPairs.find(pairForMerging);
+            if(iter == tokenPairs.end())
+            {
+                continue;
+            }
+            // the indices have to be copied since tokenPairs will be adjusted on the fly
+            std::vector<size_t> indices(iter->second.begin(),iter->second.end());
+            for(const size_t sequenceIndex: indices)
+            {
+                changed |= ReplaceOnePair(pairForMerging,sequenceIndex);
+            }
         }
-        // the indices have to be copied since tokenPairs will be adjusted on the fly
-        std::vector<size_t> indices(iter->second.begin(),iter->second.end());
-        for(const size_t sequenceIndex: indices)
-        {
-            ReplaceOnePair(pairForMerging,sequenceIndex);
-        }
-    }
+    } while(changed);
 }
 
 
@@ -299,12 +307,15 @@ void Tokenizer::StoreCalculatedDataToDB(SQLite::DB & db) const
     // map the tokens in order, highest count first, for more compact storage in sqlite3
     db.ExecDML("DROP TABLE IF EXISTS Tokens");
     db.ExecDML("DROP TABLE IF EXISTS TokenRelations");
+    db.ExecDML("DROP TABLE IF EXISTS Sequences");
     
-    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Left INTEGER, Right INTEGER, Count INTEGER, Sequence TEXT) WITHOUT ROWID;");
+    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Left INTEGER, Right INTEGER, Count INTEGER) WITHOUT ROWID;");
     db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
+    db.ExecDML("CREATE TABLE Sequences(SequenceId INTEGER PRIMARY KEY, Date BLOB);");
 
+    // write tokens
     db.BeginTransaction();
-    auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Left, Right, Count, Sequence) VALUES(?, ?, ?, ?, ?);");
+    auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Left, Right, 'Count') VALUES(?, ?, ?, ?);");
     for(const auto & token : tokens)
     {
         long long int count = token.count;
@@ -313,11 +324,11 @@ void Tokenizer::StoreCalculatedDataToDB(SQLite::DB & db) const
         tokensStatement.Bind(2,token.left);
         tokensStatement.Bind(3,token.right);
         tokensStatement.Bind(4,count);
-        tokensStatement.Bind(5,sequence);
         tokensStatement.ExecDML();
     }
     db.CommitTransaction();
 
+    // write relations
     db.BeginTransaction();
     auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedToken, Count) VALUES(NULL, ?, ?, ?, ?);");
     for(const auto & tokenRelation : tokenRelations)
@@ -338,6 +349,47 @@ void Tokenizer::StoreCalculatedDataToDB(SQLite::DB & db) const
     }
     db.CommitTransaction();
 
+    // write sequence
+
     db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
 }
 
+void Tokenizer::LoadDataFromDB(SQLite::DB & db)
+{
+    // read tokens
+    db.BeginTransaction();
+    {
+        auto query = db.ExecQuery("SELECT Token, Left, Right, 'Count' FROM Tokens;");
+        for(const auto &row : query.GetRows())
+        {
+            auto token = row.GetInt64Field(0);
+            auto left = row.GetInt64Field(1);
+            auto right = row.GetInt64Field(2);
+            auto count = row.GetInt64Field(3);
+            tokens.emplace(token,left,right).first->count = count;
+            if(count == 0) ++unusedTokensCount;
+        }
+    }
+    db.CommitTransaction();
+
+    // write relations
+    db.BeginTransaction();
+    {
+        auto query = db.ExecQuery("SELECT Token, Depth, ConnectedToken, 'Count' FROM TokenRelations;");
+        for(const auto &row : query.GetRows())
+        {
+            auto token = row.GetInt64Field(0);
+            auto depth = row.GetInt64Field(1);
+            auto connectedToken = row.GetInt64Field(2);
+            auto count = row.GetInt64Field(3);
+            auto iter = tokenRelations.try_emplace(token);
+            if(depth>=iter.first->second.size())
+            {
+                iter.first->second.resize(depth+1);
+            }
+            iter.first->second[depth].emplace(connectedToken).first->count = count;
+        }
+    }
+    db.CommitTransaction();
+
+}
