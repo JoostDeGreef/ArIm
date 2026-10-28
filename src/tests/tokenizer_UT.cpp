@@ -113,6 +113,39 @@ TEST_F(TokenizerTest, GetTopTokenPairs)
     EXPECT_EQ(tokenPairs.size(), t.GetTopTokenPairs(tokenPairs.size() + 1, tokenPairs).size());
 }
 
+TEST_F(TokenizerTest, CalculateTokenRelationships)
+{
+    Tokenizer t;
+    t.sequences = {{'a', 'b', 'a', 'c', 'a'}};
+    for (const auto token : t.sequences.front())
+    {
+        ++t.tokens.find(token)->count;
+    }
+
+    t.CalculateTokenRelationships(2);
+
+    ASSERT_EQ(3, t.tokenRelations.size());
+    for (const auto token : {'a', 'b', 'c'})
+    {
+        ASSERT_TRUE(t.tokenRelations.count(token));
+        ASSERT_EQ(2, t.tokenRelations.at(token).size());
+    }
+
+    const auto relationCount = [&t](char current, size_t depth, char previous)
+    {
+        const auto & relations = t.tokenRelations.at(current)[depth];
+        const auto relation = relations.find(previous);
+        return relation == relations.end() ? 0 : relation->count;
+    };
+    EXPECT_EQ(1, relationCount('a', 0, 'b'));
+    EXPECT_EQ(1, relationCount('a', 0, 'c'));
+    EXPECT_EQ(2, relationCount('a', 1, 'a'));
+
+    EXPECT_EQ(1, relationCount('b', 0, 'a'));
+    EXPECT_EQ(1, relationCount('c', 0, 'a'));
+    EXPECT_EQ(1, relationCount('c', 1, 'b'));
+}
+
 TEST_F(TokenizerTest, OptimizeTokenLength)
 {
     Tokenizer t;
@@ -123,46 +156,19 @@ TEST_F(TokenizerTest, OptimizeTokenLength)
     EXPECT_EQ(7, t.GetUsedTokensCount());
 }
 
-// TEST_F(TokenizerTest, CreateMappingForTokensByCount)
-// {
-//     Tokenizer t;
-//     for (Token::Data id = 0; id < 12; ++id)
-//     {
-//         t.tokens.emplace(id, Token(id));
-//         t.tokens[id].count = (id * 7 + 3) % 13 + 1;
-//     }
-//     // Empty tokens are not included in the mapping.
-//     t.tokens.emplace(12, Token(12));
-//     t.tokens[12].type = Token::Type::Empty;
-//     t.tokens[12].count = 100;
+TEST_F(TokenizerTest, GetTokenTextSequence)
+{
+    Tokenizer t;
+    t.tokens.emplace(Token('a'));
+    t.tokens.emplace(Token('b'));
+    t.tokens.emplace(Token('c'));
+    t.tokens.emplace(Token(256, 'a', 'b'));
+    t.tokens.emplace(Token(257, 256, 'c'));
 
-//     const TokensMappedByCount mapping = t.CreateMappingForTokensByCount();
-//     ASSERT_EQ(12, mapping.size());
-//     for (Token::Data id = 0; id < 12; ++id)
-//     {
-//         Token::Data expectedRank = 0;
-//         for (Token::Data other = 0; other < 12; ++other)
-//         {
-//             if (t.tokens[other].count > t.tokens[id].count)
-//                 ++expectedRank;
-//         }
-//         EXPECT_EQ(expectedRank, mapping.at(id)) << "token " << id;
-//     }
-// }
-
-// TEST_F(TokenizerTest, GetTokenTextSequence)
-// {
-//     Tokenizer t;
-//     t.tokens.emplace('a', Token('a'));
-//     t.tokens.emplace('b', Token('b'));
-//     t.tokens.emplace('c', Token('c'));
-//     t.tokens.emplace(256, Token(256, 'a', 'b'));
-//     t.tokens.emplace(257, Token(257, 256, 'c'));
-
-//     EXPECT_EQ("a", t.GetTokenTextSequence('a'));
-//     EXPECT_EQ("ab", t.GetTokenTextSequence(256));
-//     EXPECT_EQ("abc", t.GetTokenTextSequence(257));
-// }
+    EXPECT_EQ("a", t.GetTokenTextSequence('a'));
+    EXPECT_EQ("ab", t.GetTokenTextSequence(256));
+    EXPECT_EQ("abc", t.GetTokenTextSequence(257));
+}
 
 // TEST_F(TokenizerTest, FullFunctionalityTest)
 // {
@@ -210,10 +216,14 @@ TEST_F(TokenizerTest, OptimizeTokenLength)
 //     }
 //     EXPECT_EQ(expectedTokenRelations, t.tokenRelations);
 
-//     t.StoreCalculatedDataToDB(randomFilename);
-
 //     SQLite::DB db;
-//     db.Open(randomFilename, true);
+//     db.Open(randomFilename, false);
+
+//     db.ExecDML("PRAGMA journal_mode = WAL;");
+//     db.ExecDML("PRAGMA synchronous = NORMAL;");
+//     db.ExecDML("PRAGMA temp_store = MEMORY;");
+//     t.StoreCalculatedDataToDB(db);
+
 //     EXPECT_EQ(5, db.ExecSingleInt64("SELECT COUNT(*) FROM Tokens;"));
 //     EXPECT_EQ(4, db.ExecSingleInt64("SELECT COUNT(*) FROM (SELECT Token FROM TokenRelations WHERE Depth = 0 GROUP BY Token);"));
 // }

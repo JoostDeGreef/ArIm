@@ -5,7 +5,14 @@ Token::Token()
 {}
 
 Token::Token(const Data token)
-    : count(0)
-    , token(token)
+    : Token(token, root, root)
+{}
+
+Token::Token(const Data token, const Data left,const Data right)
+    : token(token)
+    , left(left)
+    , right(right)
+    , count(0)
     , separator(false)
 {}
+

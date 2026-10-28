@@ -11,6 +11,7 @@ public:
 
     Token();
     Token(const Data token);
+    Token(const Data token,const Data left,const Data right);
 
     Token(const Token &) = default;
     Token(Token &&) = default;
@@ -19,9 +20,16 @@ public:
 
     static constexpr Data root = (Data)-1;
 
-    uint32_t count;
     Data token;
-    bool separator;
+    Data left;
+    Data right;
+    mutable uint32_t count;
+    mutable bool separator;
+
+    bool operator == (const Token & other) const
+    {
+        return token == other.token;
+    }
 
     struct HashFunction
     {

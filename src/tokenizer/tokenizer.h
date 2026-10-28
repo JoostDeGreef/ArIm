@@ -5,23 +5,21 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
+#include "db.h"
 #include "token.h"
 #include "tokenpair.h"
 
 // TokenPairs stores the index of each sequence the TokenPair is used in
 typedef std::unordered_map<TokenPair,std::multiset<size_t>,TokenPair::HashFunction> TokenPairs;
 // Map from Token::Data to Token
-typedef std::unordered_map<Token::Data, Token> TokensMap;
+typedef std::unordered_set<Token,Token::HashFunction> TokensSet;
 // Vector with sequences of Token::Data
 typedef std::vector<Token::Data> TokenSequence;
 typedef std::vector<TokenSequence> TokenSequences;
 // vector with sequence ot TokenData
 typedef std::vector<TokenPair> TokenPairSequence;
-
-// typedef std::vector<TokenPairSet> TokenPairSets;
-// typedef std::unordered_map<Token::Data, Token::Data, Token::HashFunction> TokensMappedByCount;
-// typedef std::unordered_map<Token::Data, size_t> TokenCountMap;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
@@ -49,22 +47,22 @@ public:
     //    lower number of steps gives more accurate result, but takes longer
     void OptimizeTokenLength(size_t n = 1024, size_t step = 5);
 
-    // // 3. store all token relations found in input up to depth 
-    // void CalculateTokenRelationships(size_t depth = 5); 
+    // 3. store all token relations found in input up to depth 
+    void CalculateTokenRelationships(size_t depth = 5); 
 
-    // // 4. store token sequences and token relationships to a database
-    // void StoreCalculatedDataToDB(const std::string & filename) const;
+    // 4. store token sequences and token relationships to a database
+    void StoreCalculatedDataToDB(SQLite::DB & db) const;
 
 private:
     // all tokens, intermediate nodes and root nodes
-    TokensMap tokens; 
+    TokensSet tokens; 
     size_t unusedTokensCount = 0;
 
     // input data split in token sequences
     TokenSequences sequences;
 
-    // // the relationship between any token and the n tokens before it
-    // std::unordered_map<Token::Data,std::vector<TokenCountMap>> tokenRelations;
+    // the relationship between any token and the n tokens before it
+    std::unordered_map<Token::Data,std::vector<TokensSet>> tokenRelations;
 
     /*
      *   internal functions
@@ -72,9 +70,6 @@ private:
 
     // return the number of used tokens
     size_t GetUsedTokensCount() const;
-
-    // only for debugging. will be removed. do not use
-    void CheckUsedTokensCount() const;
 
     // create tokenpairs for every sequence in sequences
     TokenPairs CreateTokenPairsForSequences();
@@ -85,10 +80,6 @@ private:
     // update sequences, tokenPairs, and tokens by merging any pairs found in pairsForMerging 
     void MergeTopTokenPairs(const TokenPairSequence & pairsForMerging, TokenPairs & tokenPairs);
 
-    // // get the original text sequence the token represents
-    // std::string GetTokenTextSequence(const Token::Data & token) const;
-
-    // // create a mapping for all used tokens to new token values starting at 0, with decreasing count
-    // // this is usefull when storing to db, where smaller numbers migth take less storage size
-    // TokensMappedByCount CreateMappingForTokensByCount() const;
+    // get the original text sequence the token represents
+    std::string GetTokenTextSequence(const Token & token) const;
 };
