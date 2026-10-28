@@ -8,6 +8,8 @@
         }
     ],
     "configurations": [
+
+
         
         {
             "name": "Debug tokenizer_ut",
@@ -27,7 +29,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/bin/tokenizer_UT",
-            "args": [],
+            "args": ["--gtest_break_on_failure", "--gtest_catch_exceptions=0"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"
         },

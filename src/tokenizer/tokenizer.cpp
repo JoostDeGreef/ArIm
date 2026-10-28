@@ -12,34 +12,32 @@ using namespace std;
 
 Tokenizer::Tokenizer()
     : tokens()
+    , unusedTokensCount(256)
 {
+    // insert the 256 ascii chars, and indicate which characters are special
+    std::array<bool, 256> separators= {};
+    separators[(Token::Data)' '] = true;
+    separators[(Token::Data)'.'] = true;
+    separators[(Token::Data)';'] = true;
+    separators[(Token::Data)':'] = true;
+    separators[(Token::Data)'\''] = true;
+    separators[(Token::Data)'\"'] = true;
+    separators[(Token::Data)'\n'] = true;
+    separators[(Token::Data)'\t'] = true;
+    for(Token::Data t = 0; t<256; ++t)
+    {
+        tokens.emplace(t,t).first->second.separator = separators[t];
+    }
 }
 
 void Tokenizer::FeedInput(const std::string& input)
 {
-    // sanity check to see if functions are called in the right order
-    assert(nextToken<=(1<<8));
-    // original input tokens
-    std::array<Token,1<<8> ascii;
-    for(uint16_t t = 0; t<256; ++t)
-    {
-        ascii[t] = Token(t);
-    }
-    std::array<bool, 256> separators= {};
-    // cast to uint8_t, just in case the system uses signed char. 
-    separators[(uint8_t)' '] = true;
-    separators[(uint8_t)'.'] = true;
-    separators[(uint8_t)';'] = true;
-    separators[(uint8_t)':'] = true;
-    separators[(uint8_t)'\''] = true;
-    separators[(uint8_t)'\"'] = true;
-    separators[(uint8_t)'\n'] = true;
-    separators[(uint8_t)'\t'] = true;
     std::vector<Token::Data> running;
     for(uint8_t t: input)
     {
-        ++ascii[t].count;
-        if(separators[t])
+        auto & token = tokens[t];
+        ++token.count;
+        if(token.separator)
         {
             if(!running.empty())
             {
@@ -57,380 +55,349 @@ void Tokenizer::FeedInput(const std::string& input)
     {
         sequences.emplace_back(running);
     }
-    for(auto & t: ascii)
+    // reset the empty tokens counter
+    unusedTokensCount = 0;
+    for(const auto & token: tokens)
     {
-        if(t.count)
+        if(token.second.count == 0)
         {
-            auto iter = tokens.emplace(t.token, t);
-            if( !iter.second )
-            {
-                iter.first->second.count += t.count;
-            }
+            ++unusedTokensCount;
         }
     }
-    nextToken = 1<<8;
-    empty_tokens_count = 0;
 }
 
 size_t Tokenizer::GetUsedTokensCount() const
 {
-    return tokens.size() - empty_tokens_count;
+    return tokens.size() - unusedTokensCount;
 }
 
-TokenPairSet Tokenizer::CreateTokenPairsForSequence(const TokenSequence & sequence) const
+void Tokenizer::CheckUsedTokensCount() const
 {
-    TokenPairSet tokenPairs;
-    for(size_t i=0,j=1;j<sequence.size();++i,++j)
+    size_t count = 0;
+    for(const auto & t : tokens)
     {
-        auto res = tokenPairs.emplace(TokenPair(sequence[i],sequence[j]));
-        res.first->count++;
+        if(t.second.count)
+        {
+            ++count;
+        }
+    }
+    assert(count == GetUsedTokensCount());
+}
+
+TokenPairs Tokenizer::CreateTokenPairsForSequences()
+{
+    TokenPairs tokenPairs;
+    tokenPairs.reserve(tokens.size()*tokens.size());
+    size_t t = tokens.size();
+    for(size_t s = 0;s < sequences.size(); ++s)
+    {
+        const auto & sequence = sequences[s];
+        for(size_t i=0,j=1;j<sequence.size();++i,++j)
+        {
+            TokenPair key(t,sequence[i],sequence[j]);
+            auto res = tokenPairs.try_emplace(key);
+            if(res.second)
+            {
+                tokens.emplace(t,t).first->second.count = 0;
+                ++t;
+                ++unusedTokensCount;
+            }
+            res.first->second.emplace(s);
+        }
     }
     return tokenPairs;
 }
 
-std::vector<TokenPairSet> Tokenizer::CreateTokenPairsForSequences(const TokenSequences & sequences) const
+TokenPairSequence Tokenizer::GetTopTokenPairs(size_t n, const TokenPairs & tokenPairs) const
 {
-    std::vector<TokenPairSet> res;
-    res.reserve(sequences.size());
-    for(const auto & sequence: sequences)
+    constexpr size_t chunkSize = 100;
+    struct TokenPairCount
     {
-        auto pairs = CreateTokenPairsForSequence(sequence);
-        res.emplace_back(pairs);
-    }
-    return res;
-}
-
-TokenPairVector Tokenizer::GetTopTokenPairs(size_t n, const TokenPairSet & tokenPairSet) const
-{
-    TokenPairVector res(tokenPairSet.begin(),tokenPairSet.end());
-    const auto count = std::min(n, res.size());
-    const auto better = [](const TokenPair & a, const TokenPair & b)
+        TokenPair tokenpair;
+        size_t count;
+    };
+    std::vector<TokenPairCount> tokenPairCounts;
+    tokenPairCounts.reserve(chunkSize);
+    auto SortTokenPairCounts = [&tokenPairCounts,&n]()
     {
-        if( a.count != b.count )
+        size_t count = min(n,tokenPairCounts.size());
+        std::partial_sort(tokenPairCounts.begin(),tokenPairCounts.begin() + count,tokenPairCounts.end(),[](const TokenPairCount & a, const TokenPairCount & b)
         {
             return a.count > b.count;
-        }
-        if( a.left != b.left )
-        {
-            return a.left > b.left;
-        }
-        return a.right > b.right;
+        });
+        tokenPairCounts.resize(count);
     };
-    std::partial_sort(res.begin(),res.begin() + count,res.end(),better);
-    res.resize(count);
+    for(const auto & tokenPairSequences : tokenPairs)
+    {
+        tokenPairCounts.emplace_back(tokenPairSequences.first,tokenPairSequences.second.size());
+        if(tokenPairCounts.size()>=chunkSize)
+        {
+            SortTokenPairCounts();
+        }
+    }
+    SortTokenPairCounts();
+    TokenPairSequence res;
+    res.reserve(n);
+    std::transform(tokenPairCounts.begin(), tokenPairCounts.end(), std::back_inserter(res), [](const TokenPairCount & a){ return a.tokenpair; });
     return res;
 }
 
-void Tokenizer::MergeSpecificPairs(
-       const TokenPairVector & pairsForMerging, 
-       TokenPairSets & sequencesTokenPairs,
-       TokenPairSet & flattenedTokenPairs)
+void Tokenizer::MergeTopTokenPairs(const TokenPairSequence & pairsForMerging, TokenPairs & tokenPairs)
 {
-    // create new tokens for the pairsForMerging
-    std::vector<Token::Data> newTokens;
-    tokens.reserve(tokens.size()+pairsForMerging.size());
-    for(const auto & pair: pairsForMerging)
-    {
-        Token t{nextToken++,pair.left,pair.right};
-        tokens.emplace(t.token,t);
-        newTokens.emplace_back(t.token);
-    }
     auto DecreaseTokenCount = [&](Token & t)
     {
         if(--t.count == 0)
         {
-            ++empty_tokens_count;
-            t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Empty;
+            ++unusedTokensCount;
         }
     };
     auto IncreaseTokenCount = [&](Token & t)
     {
         if(t.count++ == 0)
         {
-            --empty_tokens_count;
-            t.type = t.type == Token::Type::Root ? Token::Type::Root : Token::Type::Node;
+            --unusedTokensCount;
+        }
+    };
+    auto RemoveOnePair = [&](Token::Data left, Token::Data right, const size_t sequenceIndex)
+    {
+        auto tokenPairSequenceIter = tokenPairs.find(TokenPair(-1,left,right));
+        if(tokenPairSequenceIter != tokenPairs.end())
+        {
+            auto & sequences = tokenPairSequenceIter->second;
+            // only remove one, so use the iterator version
+            auto iter = sequences.find(sequenceIndex);
+            if(iter != sequences.end())
+            {
+                sequences.erase(iter);
+                if(sequences.empty())
+                {
+                    tokenPairs.erase(tokenPairSequenceIter);
+                }
+            }
+        }
+    };
+    auto AddOnePair = [&](Token::Data left, Token::Data right, const size_t sequenceIndex)
+    {
+        auto iter = tokenPairs.try_emplace(TokenPair(-1,left,right));
+        iter.first->second.emplace(sequenceIndex);
+        if(iter.second)
+        {
+            Token::Data t = tokens.size();
+            iter.first->first.token = t;
+            ++tokens.emplace(t,t).first->second.count;
         }
     };
     // merge the pair from pairsForMerging when found in sequence/sequenceTokenPairs
-    auto ReplaceOnePair = [&](const TokenPair & tokenPair,const Token::Data newToken, TokenSequence & sequence, TokenPairVector & add, TokenPairVector & remove)
+    auto ReplaceOnePair = [&](const TokenPair & tokenPair, const size_t sequenceIndex)
     {
-        add.clear();
-        remove.clear();
+        TokenSequence & sequence = sequences[sequenceIndex];
         for(size_t i = 1;i<sequence.size();++i)
         {
             if(sequence[i-1] == tokenPair.left && sequence[i-0] == tokenPair.right)
             {
                 // update token counts
+                CheckUsedTokensCount();
                 DecreaseTokenCount(tokens.at(sequence[i-1]));
                 DecreaseTokenCount(tokens.at(sequence[i-0]));
-                IncreaseTokenCount(tokens.at(newToken));
-                // store pairs to remove
-                if(i>1)
-                {
-                    remove.emplace_back(sequence[i-2],sequence[i-1]);
-                }
-                remove.emplace_back(sequence[i-1], sequence[i-0]);
-                if(i+1<sequence.size())
-                {
-                    remove.emplace_back(sequence[i-0],sequence[i+1]);
-                }
+                IncreaseTokenCount(tokens.at(tokenPair.token));
+                CheckUsedTokensCount();
+                // remove pairs
+                if(i>1) RemoveOnePair(sequence[i-2],sequence[i-1],sequenceIndex);
+                RemoveOnePair(sequence[i-1], sequence[i-0],sequenceIndex);
+                if(i+1<sequence.size()) RemoveOnePair(sequence[i-0],sequence[i+1],sequenceIndex);
                 // update sequence
-                sequence[i-1] = newToken;
+                sequence[i-1] = tokenPair.token;
                 sequence.erase(sequence.begin()+i);
-                // store pairs to add
-                if(i>1)
-                {
-                    add.emplace_back(sequence[i-2],sequence[i-1]);
-                }
-                if(i<sequence.size())
-                {
-                    add.emplace_back(sequence[i-1],sequence[i-0]);
-                }
+                // add pairs
+                if(i>1) AddOnePair(sequence[i-2],sequence[i-1],sequenceIndex);
+                if(i<sequence.size()) AddOnePair(sequence[i-1],sequence[i-0],sequenceIndex);
+                // remove only one pair, so return here
+                CheckUsedTokensCount();
                 return;
             }
         }
         assert(false); // should not be reached. sequenceTokenPairs promised the token pair exists!
     };
-    auto AddPairs = [](const TokenPairVector & pairsToAdd, TokenPairSet & tokenPairs)
+    // todo:
+    // run this multiple times until nothing changes. 
+    // the newly added tokenpairs could be the ones we are replacing
+    for(const auto & pairForMerging : pairsForMerging)
     {
-        for(const auto & pairToAdd : pairsToAdd)
+        auto iter = tokenPairs.find(pairForMerging);
+        if(iter == tokenPairs.end())
         {
-            auto iter = tokenPairs.emplace(pairToAdd);
-            ++iter.first->count; 
+            continue;
         }
-    };
-    auto RemovePairs = [](const TokenPairVector & pairsToRemove, TokenPairSet & tokenPairs)
-    {
-        for(const auto & pairToRemove : pairsToRemove)
+        // the indices have to be copied since tokenPairs will be adjusted on the fly
+        std::vector<size_t> indices(iter->second.begin(),iter->second.end());
+        for(const size_t sequenceIndex: indices)
         {
-            auto iter = tokenPairs.find(pairToRemove);
-            if(iter != tokenPairs.end())
-            {
-                if( --iter->count == 0 )
-                {
-                    tokenPairs.erase(iter);
-                }
-            }
+            ReplaceOnePair(pairForMerging,sequenceIndex);
         }
-    };
-    TokenPairVector add;
-    TokenPairVector remove;
-    auto MergePairs = [&](TokenSequence & sequence, TokenPairSet & sequenceTokenPairs)
-    {
-        // no pairs left in this sequence, done!
-        if(sequenceTokenPairs.empty())
-        {
-            return;
-        }
-        // check if any of the tokenPairs is used in this sequence
-        for(size_t i=0; i<pairsForMerging.size(); ++i)
-        {
-            const auto & pair = pairsForMerging[i];
-            const auto & newToken = newTokens[i];
-            auto iter = sequenceTokenPairs.find(pair);
-            while(iter != sequenceTokenPairs.end())
-            {
-                // replace one pair in sequence, and see what it affects
-                ReplaceOnePair(pair,newToken,sequence,add,remove);
-                // add/remove the affected pairs from sequenceTokenPairs and flattenedTokenPairs
-                AddPairs(add, sequenceTokenPairs);
-                AddPairs(add, flattenedTokenPairs);
-                RemovePairs(remove, sequenceTokenPairs);
-                RemovePairs(remove, flattenedTokenPairs);
-                // check if there is another match of this pair
-                iter = sequenceTokenPairs.find(pair);
-            }
-        }
-    };
-    // iterate over all sequences/sequenceTokenPairs
-    auto sequencesIter = sequences.begin();
-    auto sequencesTokenPairsIter = sequencesTokenPairs.begin();
-    for(;
-        sequencesIter != sequences.end() && sequencesTokenPairsIter != sequencesTokenPairs.end();
-        ++sequencesIter, ++sequencesTokenPairsIter)
-    {
-        auto & sequence = *sequencesIter;
-        auto & sequenceTokenPairs = *sequencesTokenPairsIter;
-        MergePairs(sequence, sequenceTokenPairs);
     }
 }
 
-TokenPairSet Tokenizer::FlattenSequenceTokenPairs(const TokenPairSets & tokenPairSets)
-{
-    TokenPairSet res;
-    for(const auto & tokenPairSet : tokenPairSets)
-    {
-        for(const auto & tokenPair : tokenPairSet)
-        {
-            auto iter = res.emplace(tokenPair);
-            if( !iter.second )
-            {
-                iter.first->count += tokenPair.count;
-            }
-        }
-    }
-    return res;
-}
 
 void Tokenizer::OptimizeTokenLength(size_t n, size_t step)
 {
-    // sanity check
-    assert(nextToken>=(1<<8));
-    auto sequencesTokenPairs = CreateTokenPairsForSequences(sequences);
-    auto flattenedTokenPairs = FlattenSequenceTokenPairs(sequencesTokenPairs);
+    CheckUsedTokensCount();
+    auto tokenPairs = CreateTokenPairsForSequences();
+    CheckUsedTokensCount();
     while(GetUsedTokensCount()<n)
     {
-        auto topTokenPairs = GetTopTokenPairs(step, flattenedTokenPairs);
+        CheckUsedTokensCount();
+        auto topTokenPairs = GetTopTokenPairs(step, tokenPairs);
         if(topTokenPairs.empty())
         {
             break;
         }
-        MergeSpecificPairs(topTokenPairs, sequencesTokenPairs, flattenedTokenPairs);        
+        MergeTopTokenPairs(topTokenPairs, tokenPairs);        
     }
+    CheckUsedTokensCount();
 }
 
-void Tokenizer::CalculateTokenRelationships(size_t depth)
-{
-    std::deque<Token::Data> past;
-    // create the data structure for every non-empty token
-    decltype(tokenRelations.begin()->second) mapping;
-    mapping.resize(depth);
-    for(auto & kv : tokens)
-    {
-        auto & token = kv.second;
-        if(token.count)
-        {
-            tokenRelations.emplace(kv.first,mapping);
-        }
-    }
-    // process all the tokens/token sequences
-    auto ProcessPastTokens = [this](const std::deque<Token::Data> & past)
-    {
-        auto & tokenPast = tokenRelations[past.front()];
-        for(size_t i=1;i<past.size();++i)
-        {
-            tokenPast[i-1].emplace(past[i],0).first->second++;
-        }
-    };
-    for(const auto & sequence : sequences)
-    {
-        for(const auto & token : sequence)
-        {
-            past.emplace_front(token);
-            if(past.size()>depth+1)
-            {
-                past.pop_back();
-            }
-            ProcessPastTokens(past);
-        }
-    }
-}
+// void Tokenizer::CalculateTokenRelationships(size_t depth)
+// {
+//     std::deque<Token::Data> past;
+//     // create the data structure for every non-empty token
+//     decltype(tokenRelations.begin()->second) mapping;
+//     mapping.resize(depth);
+//     for(auto & kv : tokens)
+//     {
+//         auto & token = kv.second;
+//         if(token.count)
+//         {
+//             tokenRelations.emplace(kv.first,mapping);
+//         }
+//     }
+//     // process all the tokens/token sequences
+//     auto ProcessPastTokens = [this](const std::deque<Token::Data> & past)
+//     {
+//         auto & tokenPast = tokenRelations[past.front()];
+//         for(size_t i=1;i<past.size();++i)
+//         {
+//             tokenPast[i-1].emplace(past[i],0).first->second++;
+//         }
+//     };
+//     for(const auto & sequence : sequences)
+//     {
+//         for(const auto & token : sequence)
+//         {
+//             past.emplace_front(token);
+//             if(past.size()>depth+1)
+//             {
+//                 past.pop_back();
+//             }
+//             ProcessPastTokens(past);
+//         }
+//     }
+// }
 
-TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
-{
-    struct TokenDataCount
-    {
-        Token::Data data;
-        size_t count;
-    };
-    std::vector<TokenDataCount> sortedTokens;
-    sortedTokens.reserve(GetUsedTokensCount());
-    for(const auto & token: tokens)
-    {
-        if(token.second.type != Token::Type::Empty)
-        {
-            sortedTokens.emplace_back(token.first, token.second.count);
-        }
-    }
-    std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const TokenDataCount & a, const TokenDataCount & b)
-    {
-        return a.count > b.count;
-    });
-    std::unordered_map<Token::Data,Token::Data,Token::HashFunction> mappedTokens;
-    for(Token::Data i=0;i<sortedTokens.size();++i)
-    {
-        mappedTokens.emplace(sortedTokens[i].data,i);
-    }
-    return mappedTokens;
-}
+// TokensMappedByCount Tokenizer::CreateMappingForTokensByCount() const
+// {
+//     struct TokenDataCount
+//     {
+//         Token::Data data;
+//         size_t count;
+//     };
+//     std::vector<TokenDataCount> sortedTokens;
+//     sortedTokens.reserve(GetUsedTokensCount());
+//     for(const auto & token: tokens)
+//     {
+//         if(token.second.type != Token::Type::Empty)
+//         {
+//             sortedTokens.emplace_back(token.first, token.second.count);
+//         }
+//     }
+//     std::sort(sortedTokens.begin(),sortedTokens.end(),[&](const TokenDataCount & a, const TokenDataCount & b)
+//     {
+//         return a.count > b.count;
+//     });
+//     std::unordered_map<Token::Data,Token::Data,Token::HashFunction> mappedTokens;
+//     for(Token::Data i=0;i<sortedTokens.size();++i)
+//     {
+//         mappedTokens.emplace(sortedTokens[i].data,i);
+//     }
+//     return mappedTokens;
+// }
 
-std::string Tokenizer::GetTokenTextSequence(const Token::Data & token) const
-{
-    std::string text;
-    std::vector<Token::Data> pending{token};
-    while(!pending.empty())
-    {
-        const Token & current = tokens.at(pending.back());
-        pending.pop_back();
-        if(current.type == Token::Type::Root)
-        {
-            text.push_back(static_cast<char>(current.token));
-        }
-        else if(current.type == Token::Type::Node)
-        {
-            pending.push_back(current.right);
-            pending.push_back(current.left);
-        }
-    }
-    return text;
-}
+// std::string Tokenizer::GetTokenTextSequence(const Token::Data & token) const
+// {
+//     std::string text;
+//     std::vector<Token::Data> pending{token};
+//     while(!pending.empty())
+//     {
+//         const Token & current = tokens.at(pending.back());
+//         pending.pop_back();
+//         if(current.type == Token::Type::Root)
+//         {
+//             text.push_back(static_cast<char>(current.token));
+//         }
+//         else if(current.type == Token::Type::Node)
+//         {
+//             pending.push_back(current.right);
+//             pending.push_back(current.left);
+//         }
+//     }
+//     return text;
+// }
 
-void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
-{
-    // map the tokens in order, highest count first, for more compact storage in sqlite3
-    SQLite::DB db;
-    db.Open(filename, false);
+// void Tokenizer::StoreCalculatedDataToDB(const std::string & filename) const
+// {
+//     // map the tokens in order, highest count first, for more compact storage in sqlite3
+//     SQLite::DB db;
+//     db.Open(filename, false);
 
-    db.ExecDML("PRAGMA journal_mode = WAL;");
-    db.ExecDML("PRAGMA synchronous = NORMAL;");
-    db.ExecDML("PRAGMA temp_store = MEMORY;");
+//     db.ExecDML("PRAGMA journal_mode = WAL;");
+//     db.ExecDML("PRAGMA synchronous = NORMAL;");
+//     db.ExecDML("PRAGMA temp_store = MEMORY;");
 
-    db.ExecDML("DROP TABLE IF EXISTS Tokens");
-    db.ExecDML("DROP TABLE IF EXISTS TokenRelations");
+//     db.ExecDML("DROP TABLE IF EXISTS Tokens");
+//     db.ExecDML("DROP TABLE IF EXISTS TokenRelations");
     
-    db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Count INTEGER, Sequence TEXT) WITHOUT ROWID;");
-    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
+//     db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Count INTEGER, Sequence TEXT) WITHOUT ROWID;");
+//     db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
 
-    TokensMappedByCount mappedTokens = CreateMappingForTokensByCount();
-    db.BeginTransaction();
-    auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Count, Sequence) VALUES(?, ?, ?);");
-    for(const auto & kv : mappedTokens)
-    {
-        auto & token = tokens.at(kv.first);
-        long long int count = token.count;
-        if(count)
-        {
-            std::string sequence = GetTokenTextSequence(kv.first);
-            tokensStatement.Bind(1,kv.second);
-            tokensStatement.Bind(2,count);
-            tokensStatement.Bind(3,sequence);
-            tokensStatement.ExecDML();
-        }
-    }
-    db.CommitTransaction();
+//     TokensMappedByCount mappedTokens = CreateMappingForTokensByCount();
+//     db.BeginTransaction();
+//     auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Count, Sequence) VALUES(?, ?, ?);");
+//     for(const auto & kv : mappedTokens)
+//     {
+//         auto & token = tokens.at(kv.first);
+//         long long int count = token.count;
+//         if(count)
+//         {
+//             std::string sequence = GetTokenTextSequence(kv.first);
+//             tokensStatement.Bind(1,kv.second);
+//             tokensStatement.Bind(2,count);
+//             tokensStatement.Bind(3,sequence);
+//             tokensStatement.ExecDML();
+//         }
+//     }
+//     db.CommitTransaction();
 
-    db.BeginTransaction();
-    auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedToken, Count) VALUES(NULL, ?, ?, ?, ?);");
-    for(const auto & tokenRelation : tokenRelations)
-    {
-        auto mappedTokenData = mappedTokens.at(tokenRelation.first);
-        tokenRelationsStatement.Bind(1,mappedTokenData);
-        for(size_t depth = 0; depth < tokenRelation.second.size(); ++depth)
-        {
-            tokenRelationsStatement.Bind(2,(long long int)depth);
-            auto & depthRelations = tokenRelation.second[depth];
-            for(const auto & depthRelation : depthRelations)
-            {
-                auto mappedConnectedTokenData = mappedTokens.at(depthRelation.first);
-                long long int count = depthRelation.second;
-                tokenRelationsStatement.Bind(3,mappedConnectedTokenData);
-                tokenRelationsStatement.Bind(4,count);
-                tokenRelationsStatement.ExecDML();
-            }
-        }
-    }
-    db.CommitTransaction();
+//     db.BeginTransaction();
+//     auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedToken, Count) VALUES(NULL, ?, ?, ?, ?);");
+//     for(const auto & tokenRelation : tokenRelations)
+//     {
+//         auto mappedTokenData = mappedTokens.at(tokenRelation.first);
+//         tokenRelationsStatement.Bind(1,mappedTokenData);
+//         for(size_t depth = 0; depth < tokenRelation.second.size(); ++depth)
+//         {
+//             tokenRelationsStatement.Bind(2,(long long int)depth);
+//             auto & depthRelations = tokenRelation.second[depth];
+//             for(const auto & depthRelation : depthRelations)
+//             {
+//                 auto mappedConnectedTokenData = mappedTokens.at(depthRelation.first);
+//                 long long int count = depthRelation.second;
+//                 tokenRelationsStatement.Bind(3,mappedConnectedTokenData);
+//                 tokenRelationsStatement.Bind(4,count);
+//                 tokenRelationsStatement.ExecDML();
+//             }
+//         }
+//     }
+//     db.CommitTransaction();
 
-    db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
-}
+//     db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
+// }
 

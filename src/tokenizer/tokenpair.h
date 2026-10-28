@@ -1,31 +1,25 @@
 #pragma once
 
 #include <unordered_set>
-#include <set>
 
 #include "token.h"
 
 class TokenPair
 {
 public:
-    Token::Data left = Token::root;
-    Token::Data right = Token::root;
-    mutable uint32_t count = 0;
+    mutable Token::Data token;
+    Token::Data left;
+    Token::Data right;
 
     TokenPair()
+        : TokenPair(Token::root, Token::root, Token::root)
     {}
-    TokenPair(const Token::Data left, const Token::Data right)
-        : left(left)
+    TokenPair(const Token::Data token, const Token::Data left, const Token::Data right)
+        : token(token)
+        , left(left)
         , right(right)
-    {}
-    TokenPair(const Token::Data left, const Token::Data right, const uint32_t count)
-        : left(left)
-        , right(right)
-        , count(count)
     {}
 
-    // operators which are only used for inserting in maps/sets.
-    // they do explicitely not involve the count
     bool operator==(const TokenPair& other) const
     {
         return left == other.left && right == other.right;
@@ -37,15 +31,6 @@ public:
         {
             constexpr int shift = 8*(sizeof(size_t) - sizeof(Token::Data));
             return std::hash<size_t>()((size_t)tokenPair.left ^ ((size_t)tokenPair.right << shift));
-        }
-    };
-
-    // sorter which sorts tokenpairs descending on count
-    struct CountSort
-    {
-        bool operator()(const TokenPair & a, const TokenPair & b)
-        {
-            return a.count > b.count;
         }
     };
 };

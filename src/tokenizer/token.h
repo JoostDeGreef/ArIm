@@ -8,16 +8,9 @@ class Token
 {
 public:
     typedef uint16_t Data;
-    enum class Type : Data
-    {
-        Empty,
-        Root,
-        Node,
-    };
 
     Token();
-    Token(const Data token); // add root
-    Token(const Data token, const Data left, const Data right); // add node
+    Token(const Data token);
 
     Token(const Token &) = default;
     Token(Token &&) = default;
@@ -28,9 +21,7 @@ public:
 
     uint32_t count;
     Data token;
-    Data left;
-    Data right;
-    Type type;
+    bool separator;
 
     struct HashFunction
     {
