@@ -21,7 +21,7 @@ public:
     static constexpr Data root = (Data)-1;
 
     Data token;
-    Data left;
+    Data left; // todo: see if left+right can and should be removed here.
     Data right;
     mutable uint32_t count;
     mutable bool separator;

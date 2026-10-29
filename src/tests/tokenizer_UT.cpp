@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <atomic>
 #include <deque>
@@ -164,7 +165,10 @@ TEST_F(TokenizerTest, CalculateTokenRelationships)
     const auto relationCount = [&t](char current, size_t depth, char previous)
     {
         const auto & relations = t.tokenRelations.at(current)[depth];
-        const auto relation = relations.find(previous);
+        const auto relation = std::find_if(relations.begin(), relations.end(), [previous](const TokenCount & count)
+        {
+            return count.token == previous;
+        });
         return relation == relations.end() ? 0 : relation->count;
     };
     EXPECT_EQ(1, relationCount('a', 0, 'b'));
@@ -249,7 +253,7 @@ TEST_F(TokenizerTest, FullFunctionalityTest)
     {
         if (token.count)
         {
-            expectedTokenRelations.emplace(token.token, std::vector<TokensSet>(5));
+            expectedTokenRelations.emplace(token.token, std::vector<TokenCounts>(5));
         }
     }
     std::deque<Token::Data> pastTokens;
@@ -265,7 +269,19 @@ TEST_F(TokenizerTest, FullFunctionalityTest)
             }
             for (size_t depth = 1; depth < pastTokens.size(); ++depth)
             {
-                relations[depth - 1].emplace(pastTokens[depth]).first->count++;
+                auto & counts = relations[depth - 1];
+                auto relation = std::find_if(counts.begin(), counts.end(), [token = pastTokens[depth]](const TokenCount & count)
+                {
+                    return count.token == token;
+                });
+                if (relation == counts.end())
+                {
+                    counts.push_back(TokenCount{pastTokens[depth], 1});
+                }
+                else
+                {
+                    ++relation->count;
+                }
             }
         }
     }

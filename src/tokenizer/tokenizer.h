@@ -13,7 +13,7 @@
 
 // TokenPairs stores the index of each sequence the TokenPair is used in
 typedef std::unordered_map<TokenPair,std::multiset<size_t>,TokenPair::HashFunction> TokenPairs;
-// Map from Token::Data to Token
+// Set of tokens
 typedef std::unordered_set<Token,Token::HashFunction> TokensSet;
 // Vector with sequences of Token::Data
 typedef std::vector<Token::Data> TokenSequence;
@@ -25,6 +25,10 @@ struct TokenCount
 {
     Token::Data token;
     size_t count;
+    bool operator==(const TokenCount & other) const
+    {
+        return token == other.token && count == other.count;
+    }
 };
 typedef std::vector<TokenCount> TokenCounts;
 
@@ -72,7 +76,7 @@ private:
     // the relationship between any token and the n tokens before it
     // this map has less items than tokens, unused tokens are ignored
     // combining tokens and tokenRelations _migth_ work, but measure results
-    std::unordered_map<Token::Data,std::vector<TokensSet>> tokenRelations; // todo: replace the TokensSet by TokenCounts
+    std::unordered_map<Token::Data,std::vector<TokenCounts>> tokenRelations;
 
     /*
      *   internal functions

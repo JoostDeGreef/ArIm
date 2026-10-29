@@ -264,7 +264,19 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
         auto & tokenPast = tokenRelations[past.front()];
         for(size_t i=1;i<past.size();++i)
         {
-            tokenPast[i-1].emplace(past[i]).first->count++;
+            auto & counts = tokenPast[i-1];
+            auto relation = std::find_if(counts.begin(), counts.end(), [token = past[i]](const TokenCount & count)
+            {
+                return count.token == token;
+            });
+            if(relation == counts.end())
+            {
+                counts.push_back(TokenCount{past[i], 1});
+            }
+            else
+            {
+                ++relation->count;
+            }
         }
     };
     for(const auto & sequence : sequences)
@@ -421,7 +433,7 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
     // read tokens
     db.BeginTransaction();
     {
-        tokens.reserve(1000); // TODO: read nr of tokens from db
+        tokens.reserve(db.ExecSingleInt64("SELECT COUNT(*) FROM Tokens;"));
         auto query = db.ExecQuery("SELECT Token, Left, Right, Count FROM Tokens;");
         for(const auto &row : query.GetRows())
         {
@@ -453,7 +465,7 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
             for(size_t i=0;i<connectedTokens.size();i+=sizeof(TokenCount))
             {
                 TokenCount * t = reinterpret_cast<TokenCount *>(&connectedTokens[i]);
-                iter.first->second[depth].emplace(t->token).first->count = t->count;
+                iter.first->second[depth].push_back(*t);
             }
         }
     }
