@@ -29,7 +29,7 @@ protected:
         for (unsigned attempt = 0; attempt < 100000; ++attempt)
         {
             std::ostringstream filename;
-            filename << "/tmp/" << UnitTest::GetInstance()->current_test_info()->test_suite_name()
+            filename << "temp/" << UnitTest::GetInstance()->current_test_info()->test_suite_name()
                      << "_" << UnitTest::GetInstance()->current_test_info()->test_case_name()
                      << '.' << std::setw(5) << std::setfill('0') << (sequence++ % 100000)
                      << "." << extension;
@@ -280,5 +280,34 @@ TEST_F(TokenizerTest, FullFunctionalityTest)
     t.StoreCalculatedDataToDB(db);
 
     EXPECT_EQ(t.tokens.size(), db.ExecSingleInt64("SELECT COUNT(*) FROM Tokens;"));
-    EXPECT_EQ(4, db.ExecSingleInt64("SELECT COUNT(*) FROM (SELECT Token FROM TokenRelations WHERE Depth = 0 GROUP BY Token);"));
+    EXPECT_EQ(5, db.ExecSingleInt64("SELECT COUNT(*) FROM (SELECT Token FROM TokenRelations WHERE Depth = 0 GROUP BY Token);"));
 }
+
+TEST_F(TokenizerTest, DBStoreLoad)
+{
+    std::string randomFilename = GetRandomFilename("sq3");
+    Tokenizer t0;
+    t0.FeedInput("This is a test and more data, even more data. much more data");
+    t0.OptimizeTokenLength(1024,1);
+    t0.CalculateTokenRelationships();
+    EXPECT_EQ(12, t0.tokenRelations.size());
+
+    SQLite::DB db;
+    db.Open(randomFilename, false);
+
+    db.ExecDML("PRAGMA journal_mode = WAL;");
+    db.ExecDML("PRAGMA synchronous = NORMAL;");
+    db.ExecDML("PRAGMA temp_store = MEMORY;");
+    t0.StoreCalculatedDataToDB(db);
+
+    Tokenizer t1(db);    
+    db.Close();
+    EXPECT_EQ(t0.tokens.size(), t1.tokens.size());
+    EXPECT_EQ(t0.tokenRelations.size(), t1.tokenRelations.size());
+    EXPECT_EQ(t0.unusedTokensCount, t1.unusedTokensCount);
+    EXPECT_EQ(t0.sequences.size(), t1.sequences.size());
+    EXPECT_TRUE(t0.tokens==t1.tokens);
+    EXPECT_TRUE(t0.tokenRelations==t1.tokenRelations);
+    EXPECT_TRUE(t0.sequences==t1.sequences);
+}
+ 

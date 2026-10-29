@@ -310,48 +310,110 @@ void Tokenizer::StoreCalculatedDataToDB(SQLite::DB & db) const
     db.ExecDML("DROP TABLE IF EXISTS Sequences");
     
     db.ExecDML("CREATE TABLE Tokens(Token INTEGER PRIMARY KEY, Left INTEGER, Right INTEGER, Count INTEGER) WITHOUT ROWID;");
-    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedToken INTEGER, Count INTEGER);");
-    db.ExecDML("CREATE TABLE Sequences(SequenceId INTEGER PRIMARY KEY, Date BLOB);");
+    db.ExecDML("CREATE TABLE TokenRelations(RelationId INTEGER PRIMARY KEY, Token INTEGER, Depth INTEGER, ConnectedTokens BLOB);");
+    db.ExecDML("CREATE TABLE Sequences(SequenceId INTEGER PRIMARY KEY, Data BLOB);");
 
     // write tokens
     db.BeginTransaction();
-    auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Left, Right, 'Count') VALUES(?, ?, ?, ?);");
-    for(const auto & token : tokens)
     {
-        long long int count = token.count;
-        std::string sequence = GetTokenTextSequence(token);
-        tokensStatement.Bind(1,token.token);
-        tokensStatement.Bind(2,token.left);
-        tokensStatement.Bind(3,token.right);
-        tokensStatement.Bind(4,count);
-        tokensStatement.ExecDML();
+        auto tokensStatement = db.CompileStatement("INSERT INTO Tokens(Token, Left, Right, Count) VALUES(?, ?, ?, ?);");
+        for(const auto & token : tokens)
+        {
+            long long int count = token.count;
+            std::string sequence = GetTokenTextSequence(token);
+            tokensStatement.Bind(1,token.token);
+            tokensStatement.Bind(2,token.left);
+            tokensStatement.Bind(3,token.right);
+            tokensStatement.Bind(4,count);
+            tokensStatement.ExecDML();
+        }
     }
     db.CommitTransaction();
 
     // write relations
     db.BeginTransaction();
-    auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedToken, Count) VALUES(NULL, ?, ?, ?, ?);");
-    for(const auto & tokenRelation : tokenRelations)
     {
-        tokenRelationsStatement.Bind(1,tokenRelation.first);
-        for(size_t depth = 0; depth < tokenRelation.second.size(); ++depth)
+        TokenCounts counts;
+        counts.reserve(1000);
+        auto tokenRelationsStatement = db.CompileStatement("INSERT INTO TokenRelations(RelationId, Token, Depth, ConnectedTokens) VALUES(NULL, ?, ?, ?);");
+        auto SaveCounts = [&]()
         {
-            tokenRelationsStatement.Bind(2,(long long int)depth);
-            auto & depthRelations = tokenRelation.second[depth];
-            for(const auto & depthRelation : depthRelations)
+            tokenRelationsStatement.Bind(3,reinterpret_cast<unsigned char *>(counts.data()),counts.size()*sizeof(TokenCount));
+            tokenRelationsStatement.ExecDML();
+            counts.clear();
+        };
+        for(const auto & tokenRelation : tokenRelations)
+        {
+            tokenRelationsStatement.Bind(1,tokenRelation.first);
+
+            for(size_t depth = 0; depth < tokenRelation.second.size(); ++depth)
             {
-                long long int count = depthRelation.count;
-                tokenRelationsStatement.Bind(3,depthRelation.token);
-                tokenRelationsStatement.Bind(4,count);
-                tokenRelationsStatement.ExecDML();
+                tokenRelationsStatement.Bind(2,(long long int)depth);
+
+                const auto & depthRelations = tokenRelation.second[depth];
+                for(const auto & depthRelation : depthRelations)
+                {
+                    counts.emplace_back(TokenCount{depthRelation.token,depthRelation.count});
+                    if(counts.size()>=1000)
+                    {
+                        SaveCounts();
+                    }
+                }
+                if(!counts.empty() || depthRelations.empty())
+                {
+                    SaveCounts();
+                }
             }
         }
     }
     db.CommitTransaction();
 
     // write sequence
+    db.BeginTransaction();
+    {
+        std::vector<unsigned char> flatSequence;
+        flatSequence.reserve(4200);
+        auto sequenceStatement = db.CompileStatement("INSERT INTO Sequences(SequenceId, Data) VALUES(NULL, ?);");
+        auto SaveFlatSequence = [&]()
+        {
+            sequenceStatement.Bind(1,flatSequence.data(),flatSequence.size());
+            sequenceStatement.ExecDML();
+            flatSequence.clear();
+        };
+        auto AddSize = [&](size_t size)
+        {
+            flatSequence.push_back(size);
+        };
+        auto AddToken = [&](Token::Data token)
+        {
+            unsigned char * p = reinterpret_cast<unsigned char *>(&token);
+            for(size_t i = 0, j=sizeof(token)-1;i<sizeof(token); ++i,--j)
+            {
+                flatSequence.push_back(p[j]);
+            }
+        };
+        for(const auto & sequence : sequences)
+        {
+            AddSize(sequence.size());
+            for(const auto & token : sequence)
+            {
+                AddToken(token);
+            }
+            if(flatSequence.size()>=4096)
+            {
+                SaveFlatSequence();
+            }
+        }
+        if(!flatSequence.empty() || sequences.empty())
+        {
+            SaveFlatSequence();
+        }
+    }
+    db.CommitTransaction();
 
+    db.BeginTransaction();
     db.ExecDML("CREATE INDEX idx_TokenRelations_TokenDepth ON TokenRelations(Token,Depth);");
+    db.CommitTransaction();
 }
 
 void Tokenizer::LoadDataFromDB(SQLite::DB & db)
@@ -359,7 +421,8 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
     // read tokens
     db.BeginTransaction();
     {
-        auto query = db.ExecQuery("SELECT Token, Left, Right, 'Count' FROM Tokens;");
+        tokens.reserve(1000); // TODO: read nr of tokens from db
+        auto query = db.ExecQuery("SELECT Token, Left, Right, Count FROM Tokens;");
         for(const auto &row : query.GetRows())
         {
             auto token = row.GetInt64Field(0);
@@ -372,24 +435,58 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
     }
     db.CommitTransaction();
 
-    // write relations
+    // read relations
     db.BeginTransaction();
     {
-        auto query = db.ExecQuery("SELECT Token, Depth, ConnectedToken, 'Count' FROM TokenRelations;");
+        tokenRelations.reserve(1000);
+        auto query = db.ExecQuery("SELECT Token, Depth, ConnectedTokens FROM TokenRelations;");
         for(const auto &row : query.GetRows())
         {
             auto token = row.GetInt64Field(0);
             auto depth = row.GetInt64Field(1);
-            auto connectedToken = row.GetInt64Field(2);
-            auto count = row.GetInt64Field(3);
+            auto connectedTokens = row.GetBlobField(2);
             auto iter = tokenRelations.try_emplace(token);
-            if(depth>=iter.first->second.size())
+            if(depth>=(decltype(depth))(iter.first->second.size()))
             {
                 iter.first->second.resize(depth+1);
             }
-            iter.first->second[depth].emplace(connectedToken).first->count = count;
+            for(size_t i=0;i<connectedTokens.size();i+=sizeof(TokenCount))
+            {
+                TokenCount * t = reinterpret_cast<TokenCount *>(&connectedTokens[i]);
+                iter.first->second[depth].emplace(t->token).first->count = t->count;
+            }
         }
     }
     db.CommitTransaction();
 
+    // read sequences
+    db.BeginTransaction();
+    {
+        sequences.reserve(1000);
+        TokenSequence sequence;
+        sequence.reserve(32);
+        auto query = db.ExecQuery("SELECT Data FROM Sequences ORDER BY SequenceId;");
+        for(const auto &row : query.GetRows())
+        {
+            auto data = row.GetBlobField(0);
+            auto iter = data.begin();
+            while(iter != data.end())
+            {
+                size_t size = *iter++;
+                for(size_t i = 0;i<size; ++i)
+                {
+                    Token::Data token = *iter++;
+                    for(size_t j = 1;j<sizeof(token);++j)
+                    {
+                        token <<= 8;
+                        token |= *iter++;
+                    }
+                    sequence.emplace_back(token);
+                }
+                sequences.emplace_back(sequence);
+                sequence.clear();
+            }
+        }
+    }
+    db.CommitTransaction();
 }

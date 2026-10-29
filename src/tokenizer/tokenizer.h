@@ -20,6 +20,13 @@ typedef std::vector<Token::Data> TokenSequence;
 typedef std::vector<TokenSequence> TokenSequences;
 // vector with sequence ot TokenData
 typedef std::vector<TokenPair> TokenPairSequence;
+// vector with only the token and a count;
+struct TokenCount
+{
+    Token::Data token;
+    size_t count;
+};
+typedef std::vector<TokenCount> TokenCounts;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
@@ -55,8 +62,6 @@ public:
     void StoreCalculatedDataToDB(SQLite::DB & db) const;
 
 private:
-    // todo: combine tokens and tokenRelations. don't forget to measure the timing.
-
     // all tokens, intermediate nodes and root nodes
     TokensSet tokens; 
     size_t unusedTokensCount = 0;
@@ -65,7 +70,9 @@ private:
     TokenSequences sequences;
 
     // the relationship between any token and the n tokens before it
-    std::unordered_map<Token::Data,std::vector<TokensSet>> tokenRelations;
+    // this map has less items than tokens, unused tokens are ignored
+    // combining tokens and tokenRelations _migth_ work, but measure results
+    std::unordered_map<Token::Data,std::vector<TokensSet>> tokenRelations; // todo: replace the TokensSet by TokenCounts
 
     /*
      *   internal functions
