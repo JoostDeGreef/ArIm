@@ -104,6 +104,11 @@ int main(int argc, char ** argv)
 
     SQLite::DB db;
     db.Open(dbFilename, false);
+    
+    db.ExecDML("PRAGMA journal_mode = OFF;");
+    db.ExecDML("PRAGMA synchronous = OFF;");
+    db.ExecDML("PRAGMA temp_store = MEMORY;");
+
     db.ExecDML("DROP TABLE IF EXISTS Statistics");
     db.ExecDML("CREATE TABLE Statistics(\"Group\" TEXT, Key TEXT, Value TEXT, Description TEXT);");
 

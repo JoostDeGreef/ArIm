@@ -1,17 +1,16 @@
 #include <algorithm>
-#include <gtest/gtest.h>
-#include <atomic>
 #include <deque>
 #include <fcntl.h>
 #include <iomanip>
 #include <sstream>
 #include <unistd.h>
-using namespace testing;
+
+#include "googletest_wrapper.h"
+
+#include "SQLiteDB.h"
 
 #define private public
-
 #include "tokenizer.h"
-#include "SQLiteDB.h"
 
 class TokenizerTest : public Test 
 {
@@ -26,13 +25,14 @@ protected:
 
     std::string GetRandomFilename(std::string extension)
     {
-        static std::atomic<unsigned> sequence{0};
+        const auto *testInfo = UnitTest::GetInstance()->current_test_info();
+        const std::string testName = std::string(testInfo->test_suite_name()) + "_" + testInfo->name();
         for (unsigned attempt = 0; attempt < 100000; ++attempt)
         {
+            const unsigned sequence = attempt;
             std::ostringstream filename;
-            filename << "temp/" << UnitTest::GetInstance()->current_test_info()->test_suite_name()
-                     << "_" << UnitTest::GetInstance()->current_test_info()->test_case_name()
-                     << '.' << std::setw(5) << std::setfill('0') << (sequence++ % 100000)
+            filename << "temp/" << testName
+                     << '.' << std::setw(5) << std::setfill('0') << sequence
                      << "." << extension;
             const std::string path = filename.str();
             const int fd = open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
@@ -290,8 +290,8 @@ TEST_F(TokenizerTest, FullFunctionalityTest)
     SQLite::DB db;
     db.Open(randomFilename, false);
 
-    db.ExecDML("PRAGMA journal_mode = WAL;");
-    db.ExecDML("PRAGMA synchronous = NORMAL;");
+    db.ExecDML("PRAGMA journal_mode = OFF;");
+    db.ExecDML("PRAGMA synchronous = OFF;");
     db.ExecDML("PRAGMA temp_store = MEMORY;");
     t.StoreCalculatedDataToDB(db);
 
@@ -302,6 +302,7 @@ TEST_F(TokenizerTest, FullFunctionalityTest)
 TEST_F(TokenizerTest, DBStoreLoad)
 {
     std::string randomFilename = GetRandomFilename("sq3");
+    MESSAGE() << "Test DB: " << randomFilename;
     Tokenizer t0;
     t0.FeedInput("This is a test and more data, even more data. much more data");
     t0.OptimizeTokenLength(1024,1);
@@ -311,8 +312,8 @@ TEST_F(TokenizerTest, DBStoreLoad)
     SQLite::DB db;
     db.Open(randomFilename, false);
 
-    db.ExecDML("PRAGMA journal_mode = WAL;");
-    db.ExecDML("PRAGMA synchronous = NORMAL;");
+    db.ExecDML("PRAGMA journal_mode = OFF;");
+    db.ExecDML("PRAGMA synchronous = OFF;");
     db.ExecDML("PRAGMA temp_store = MEMORY;");
     t0.StoreCalculatedDataToDB(db);
 

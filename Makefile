@@ -49,7 +49,8 @@ CPPFLAGS=-W -Wall -std=c++20
 DEFINES=
 INCLUDE=3rdParty/include
 PROJECT_INCLUDE=$(patsubst src/%,-I src/% ,$(filter-out src/tests/,$(wildcard src/*/)))
-GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
+#GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
+GTEST_LIBS=3rdParty/lib/libgtest.a
 SQLITE=3rdParty/lib/sqlite3.o
 
 # Add .d / .lnk to Make's recognized suffixes.

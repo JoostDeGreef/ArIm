@@ -1,9 +1,8 @@
+#include <utility>
+
+#include "googletest_wrapper.h"
 #include "db.h"
 #include "SQLiteException.h"
-
-#include <gtest/gtest.h>
-#include <utility>
-using namespace testing;
 
 class SQLiteTest : public Test 
 {
