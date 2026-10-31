@@ -8,6 +8,7 @@
         }
     ],
     "configurations": [
+
         
 
 
@@ -30,6 +31,15 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/bin/tokenizer_UT",
+            "args": ["--gtest_break_on_failure", "--gtest_catch_exceptions=0"],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build debug mode (makefile)"
+        },
+        {
+            "name": "Debug block_vector_ut (LLDB)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/block_vector_UT",
             "args": ["--gtest_break_on_failure", "--gtest_catch_exceptions=0"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"

@@ -104,7 +104,7 @@ int main(int argc, char ** argv)
 
     SQLite::DB db;
     db.Open(dbFilename, false);
-    
+
     db.ExecDML("PRAGMA journal_mode = OFF;");
     db.ExecDML("PRAGMA synchronous = OFF;");
     db.ExecDML("PRAGMA temp_store = MEMORY;");
@@ -222,6 +222,10 @@ int main(int argc, char ** argv)
       query.Finalize();
     }
 
+    db.ExecDML("PRAGMA analysis_limit=400;");
+    db.ExecDML("PRAGMA optimize;");
+    db.Close();
+    
     return EXIT_SUCCESS;
 }
  

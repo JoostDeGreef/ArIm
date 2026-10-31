@@ -2,7 +2,7 @@
 
 #include "googletest_wrapper.h"
 #include "db.h"
-#include "SQLiteException.h"
+// #include "SQLiteException.h"
 
 class SQLiteTest : public Test 
 {

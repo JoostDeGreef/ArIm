@@ -9,9 +9,21 @@ class Token
 public:
     typedef uint16_t Data;
 
-    Token();
-    Token(const Data token);
-    Token(const Data token,const Data left,const Data right);
+    Token()
+        : Token(root)
+    {}
+
+    Token(const Data token)
+        : Token(token, root, root)
+    {}
+
+    Token(const Data token, const Data left,const Data right)
+        : token(token)
+        , left(left)
+        , right(right)
+        , count(0)
+        , separator(false)
+    {}
 
     Token(const Token &) = default;
     Token(Token &&) = default;

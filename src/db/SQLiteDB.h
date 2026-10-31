@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "SQLiteDataType.h"
+#include "SQLiteException.h"
 #include "SQLiteQuery.h"
 #include "SQLiteStatement.h"
 
