@@ -58,9 +58,6 @@ public:
             {
                 return !m_block || other.m_index == m_index;
             }
-            // const bool this_end = m_block && !m_block->m_next && m_index == m_block->m_used;
-            // const bool other_end = other.m_block && !other.m_block->m_next && other.m_index == other.m_block->m_used;
-            // return (this_end && !other.m_block) || (other_end && !m_block);
             return false;
         }
         bool operator!=(const ITERATOR& other) const 
@@ -149,16 +146,38 @@ public:
         assert(m_last != nullptr);
         return m_last->m_data[m_last->m_used - 1];  
     }
+    T pop();
 
-    // todo: remove the erase and replace_two functions, if they are really not used
     // erase one value at position and return the iterator to the next value
     iterator erase(iterator position);
-
-    // insert one value at position, replacing two values, return iterator to inserted value
-    iterator replace_two(iterator position, const T & value);
+    reverse_iterator erase(reverse_iterator position);
 
 private:
 };
+
+template<typename T, size_t block_size>
+T block_vector<T, block_size>::pop()
+{
+    assert(m_last != nullptr);
+    T value = m_last->m_data[m_last->m_used - 1];
+    --m_last->m_used;
+    --m_used;
+    if(!m_last->m_used)
+    {
+        block* previous = m_last->m_prev;
+        delete m_last;
+        m_last = previous;
+        if(m_last)
+        {
+            m_last->m_next = nullptr;
+        }
+        else
+        {
+            m_first = nullptr;
+        }
+    }
+    return value;
+}
 
 template<typename T, size_t block_size>
 typename block_vector<T, block_size>::iterator block_vector<T, block_size>::begin()
@@ -325,13 +344,36 @@ typename block_vector<T, block_size>::iterator block_vector<T, block_size>::eras
 }
 
 template<typename T, size_t block_size>
-typename block_vector<T, block_size>::iterator block_vector<T, block_size>::replace_two(iterator position, const T & value)
+typename block_vector<T, block_size>::reverse_iterator block_vector<T, block_size>::erase(reverse_iterator position)
 {
     assert(position.m_block != nullptr);
-    assert(m_used >= 2);
-    position = erase(position);
-    *position = value;
-    return position;
+    block * current = position.m_block;
+    const size_t index = current->m_used - 1 - position.m_index;
+    for(size_t i = index; i + 1 < current->m_used; ++i)
+    {
+        current->m_data[i] = current->m_data[i + 1];
+    }
+    --current->m_used;
+    --m_used;
+    if(!m_used)
+    {
+        clear();
+        return rend();
+    }
+    if(!current->m_used)
+    {
+        block * prev = current->m_prev;
+        block * next = current->m_next;
+        delete current;
+        if(prev) prev->m_next = next; else m_first = next;
+        if(next) next->m_prev = prev; else m_last = prev;
+        return reverse_iterator(prev, 0);
+    }
+    if(index == 0)
+    {
+        return reverse_iterator(current->m_prev, 0);
+    }
+    return reverse_iterator(current, current->m_used - index);
 }
 
 template<typename T, size_t block_size>

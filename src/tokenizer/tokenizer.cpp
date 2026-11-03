@@ -212,7 +212,21 @@ void Tokenizer::CalculateTokenRelationships(size_t depth)
 
 // Store tokenizer state to a database
 void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
-{}
+{
+    // store settings
+    // store tokenizedInputSequence
+    // store nextUnusedToken
+    // store tokenPairCountAndPositions
+    // store tokenPairReplacements
+    // store tokenRelationships
+}
     
 void Tokenizer::LoadDataFromDB(SQLite::DB & db)
-{}
+{
+    // load settings, check version
+    // load tokenizedInputSequence
+    // load nextUnusedToken
+    // load tokenPairCountAndPositions
+    // load tokenPairReplacements
+    // load tokenRelationships
+}
