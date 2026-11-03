@@ -249,6 +249,30 @@ TEST_F(BlockVectorTest, ConstBackReturnsLastElement)
     EXPECT_EQ(5, constValues.back());
 }
 
+TEST_F(BlockVectorTest, CopyOperationsCreateIndependentElements)
+{
+    block_vector<int, 2> values;
+    values.push_back(1);
+    values.push_back(2);
+    values.push_back(3);
+
+    block_vector<int, 2> copied(values);
+    ASSERT_EQ(3u, copied.size());
+    EXPECT_EQ(1, *copied.begin());
+    EXPECT_EQ(3, copied.back());
+    *copied.begin() = 10;
+    EXPECT_EQ(1, *values.begin());
+
+    block_vector<int, 2> assigned;
+    assigned.push_back(9);
+    assigned = values;
+    ASSERT_EQ(3u, assigned.size());
+    EXPECT_EQ(1, *assigned.begin());
+    EXPECT_EQ(3, assigned.back());
+    *assigned.begin() = 11;
+    EXPECT_EQ(1, *values.begin());
+}
+
 TEST_F(BlockVectorTest, PopRemovesValuesAndEmptyBlocks)
 {
     block_vector<int, 2> values;

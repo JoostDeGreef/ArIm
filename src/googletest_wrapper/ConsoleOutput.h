@@ -10,6 +10,7 @@ private:
 
 public:
     static void Start();
+    static void SetCompactTestOutput(bool enabled);
 
     ConsoleOutput();
     ~ConsoleOutput();

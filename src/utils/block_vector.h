@@ -6,6 +6,7 @@
 #include <iterator>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 template<typename T, size_t block_size = 256>
 class block_vector
@@ -24,6 +25,56 @@ class block_vector
     size_t m_used = 0;
 
 public:
+    block_vector() = default;
+    block_vector(const block_vector& other)
+    {
+        try
+        {
+            for(const T& value : other)
+            {
+                push_back(value);
+            }
+        }
+        catch(...)
+        {
+            clear();
+            throw;
+        }
+    }
+
+    block_vector& operator=(const block_vector& other)
+    {
+        if(this != &other)
+        {
+            block_vector copy(other);
+            *this = std::move(copy);
+        }
+        return *this;
+    }
+
+    block_vector(block_vector&& other) noexcept
+        : m_first(other.m_first), m_last(other.m_last), m_used(other.m_used)
+    {
+        other.m_first = nullptr;
+        other.m_last = nullptr;
+        other.m_used = 0;
+    }
+
+    block_vector& operator=(block_vector&& other) noexcept
+    {
+        if(this != &other)
+        {
+            clear();
+            m_first = other.m_first;
+            m_last = other.m_last;
+            m_used = other.m_used;
+            other.m_first = nullptr;
+            other.m_last = nullptr;
+            other.m_used = 0;
+        }
+        return *this;
+    }
+
     template<typename ITERATOR, bool IS_CONST, bool IS_REVERSE = false>
     struct iterator_impl
     {

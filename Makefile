@@ -300,3 +300,9 @@ run_benchmark: ${EXE_FILES}
 	@mkdir -p temp
 	bin/tokenizer -S -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
+.PHONY: run_linked_list_benchmark
+run_linked_list_benchmark: ${EXE_FILES}
+	@mkdir -p temp
+	bin/linked_list_UT --gtest_also_run_disabled_tests --gtest_filter='*DISABLED_PushBackAndReplaceTwo*'
+
+	

@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <iomanip>
+#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <unistd.h>
@@ -51,7 +52,7 @@ TEST_F(TokenizerTest, FeedInput)
 {
     Tokenizer tokenizer;
     tokenizer.FeedInput("this is a test");
-    EXPECT_EQ(14-3, tokenizer.tokenizedInputSequence.size()) << "Expected 14 characters minus 3 spaces";
+    EXPECT_EQ(14-3, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 14 characters minus 3 spaces";
     EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
 }
 
@@ -59,7 +60,7 @@ TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
 {
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
-    EXPECT_EQ(5, tokenizer.tokenizedInputSequence.size()) << "Expected 5 characters";
+    EXPECT_EQ(5, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 5 characters";
     EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
     EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
@@ -72,7 +73,7 @@ TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
 {
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
-    EXPECT_EQ(5, tokenizer.tokenizedInputSequence.size()) << "Expected 5 characters";
+    EXPECT_EQ(5, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 5 characters";
     EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
     EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
@@ -80,7 +81,7 @@ TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
     tokenizer.tokenPairReplacements[TokenPair('a','b')] = Token('Y');
     tokenizer.tokenPairReplacements[TokenPair('b','a')] = Token('Z');
     tokenizer.ApplyExistingTokenPairReplacements();
-    ASSERT_EQ(3, tokenizer.tokenizedInputSequence.size()) << "Expected 3 tokens, XYa";
+    ASSERT_EQ(3, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 3 tokens, XYa";
     EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. XY are not new";
     auto p = tokenizer.tokenizedInputSequence.begin();
     EXPECT_EQ('X', (p++)->token) << "Expected X";
@@ -96,7 +97,7 @@ TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
 
     tokenizer.OptimizeTokenLength(257);
 
-    ASSERT_EQ(4, tokenizer.tokenizedInputSequence.size());
+    ASSERT_EQ(4, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end()));
     auto position = tokenizer.tokenizedInputSequence.begin();
     EXPECT_EQ('x' | Token::separated, (position++)->token);
     const auto replacement = (position++)->token;

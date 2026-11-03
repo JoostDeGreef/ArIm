@@ -7,11 +7,11 @@
 #include <iterator>
 #include <memory>
 #include <type_traits>
-#include <unordered_set>
+#include <utility>
 
 #include "block_vector.h"
 
-template<typename T, size_t block_size = 1024>
+template<typename T, size_t block_size = 256>
 class linked_list
 {
     struct node
@@ -25,15 +25,14 @@ class linked_list
     node* m_last = nullptr;
 
     block_vector<node, block_size> m_allocated_nodes; // memory pool of allocated nodes
-    std::unordered_set<node*> m_free_nodes; // set of free nodes for reuse
+    node* m_free_nodes = nullptr; // singly-linked list of nodes available for reuse
 
     node * allocate()
     {
-        if(!m_free_nodes.empty())
+        if(m_free_nodes)
         {
-            auto it = m_free_nodes.begin();
-            node * n = *it;
-            m_free_nodes.erase(it);
+            node * n = m_free_nodes;
+            m_free_nodes = n->m_next;
             return n;
         }
         else
@@ -45,8 +44,8 @@ class linked_list
     void deallocate(node * n)
     {
         n->m_prev = nullptr;
-        n->m_next = nullptr;
-        m_free_nodes.insert(n);
+        n->m_next = m_free_nodes;
+        m_free_nodes = n;
     }
 
 public:
@@ -153,11 +152,15 @@ public:
     iterator last() { return iterator(m_last); }
     const_iterator last() const { return const_iterator(m_last); }
 
+    linked_list() = default;
+    linked_list(const linked_list& other);
+    linked_list& operator=(const linked_list& other);
+    linked_list(linked_list&& other) noexcept;
+    linked_list& operator=(linked_list&& other) noexcept;
     ~linked_list();
 
     void clear();
 
-    size_t size() const;
     bool empty() const;
 
     // insert a value as the last value
@@ -265,15 +268,58 @@ linked_list<T, block_size>::~linked_list()
 }
 
 template<typename T, size_t block_size>
-size_t linked_list<T, block_size>::size() const
+bool linked_list<T, block_size>::empty() const
 {
-    return m_allocated_nodes.size() - m_free_nodes.size();
+    return m_first == nullptr;
 }
 
 template<typename T, size_t block_size>
-bool linked_list<T, block_size>::empty() const
+linked_list<T, block_size>::linked_list(const linked_list& other)
 {
-    return size() == 0;
+    for(const T& value : other)
+    {
+        push_back(value);
+    }
+}
+
+template<typename T, size_t block_size>
+linked_list<T, block_size>& linked_list<T, block_size>::operator=(const linked_list& other)
+{
+    if(this != &other)
+    {
+        linked_list copy(other);
+        *this = std::move(copy);
+    }
+    return *this;
+}
+
+template<typename T, size_t block_size>
+linked_list<T, block_size>::linked_list(linked_list&& other) noexcept
+    : m_first(other.m_first),
+      m_last(other.m_last),
+      m_allocated_nodes(std::move(other.m_allocated_nodes)),
+      m_free_nodes(other.m_free_nodes)
+{
+    other.m_first = nullptr;
+    other.m_last = nullptr;
+    other.m_free_nodes = nullptr;
+}
+
+template<typename T, size_t block_size>
+linked_list<T, block_size>& linked_list<T, block_size>::operator=(linked_list&& other) noexcept
+{
+    if(this != &other)
+    {
+        clear();
+        m_allocated_nodes = std::move(other.m_allocated_nodes);
+        m_first = other.m_first;
+        m_last = other.m_last;
+        m_free_nodes = other.m_free_nodes;
+        other.m_first = nullptr;
+        other.m_last = nullptr;
+        other.m_free_nodes = nullptr;
+    }
+    return *this;
 }
 
 template<typename T, size_t block_size>
@@ -282,7 +328,7 @@ void linked_list<T, block_size>::clear()
     m_first = nullptr;
     m_last = nullptr;
     m_allocated_nodes.clear();
-    m_free_nodes.clear();
+    m_free_nodes = nullptr;
 }
 
 template<typename T, size_t block_size>

@@ -19,6 +19,48 @@ using namespace std;
 
 namespace 
 {
+	bool compactTestOutput = false;
+
+	class FilteringResultPrinter : public ::testing::EmptyTestEventListener
+	{
+	public:
+		explicit FilteringResultPrinter(::testing::TestEventListener* printer)
+			: m_printer(printer)
+		{}
+
+		~FilteringResultPrinter() override { delete m_printer; }
+
+		void OnTestProgramStart(const UnitTest& unit_test) override { m_printer->OnTestProgramStart(unit_test); }
+		void OnTestIterationStart(const UnitTest& unit_test, int iteration) override { m_printer->OnTestIterationStart(unit_test, iteration); }
+		void OnEnvironmentsSetUpStart(const UnitTest& unit_test) override { m_printer->OnEnvironmentsSetUpStart(unit_test); }
+		void OnEnvironmentsSetUpEnd(const UnitTest& unit_test) override { m_printer->OnEnvironmentsSetUpEnd(unit_test); }
+		void OnTestSuiteStart(const TestSuite& test_suite) override { m_printer->OnTestSuiteStart(test_suite); }
+#ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
+		void OnTestCaseStart(const TestCase& test_case) override { m_printer->OnTestCaseStart(test_case); }
+#endif
+		void OnTestStart(const TestInfo& test_info) override
+		{
+			if(!compactTestOutput) m_printer->OnTestStart(test_info);
+		}
+		void OnTestDisabled(const TestInfo& test_info) override { m_printer->OnTestDisabled(test_info); }
+		void OnTestPartResult(const TestPartResult& result) override { m_printer->OnTestPartResult(result); }
+		void OnTestEnd(const TestInfo& test_info) override
+		{
+			if(!compactTestOutput || !test_info.result()->Passed()) m_printer->OnTestEnd(test_info);
+		}
+		void OnTestSuiteEnd(const TestSuite& test_suite) override { m_printer->OnTestSuiteEnd(test_suite); }
+#ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
+		void OnTestCaseEnd(const TestCase& test_case) override { m_printer->OnTestCaseEnd(test_case); }
+#endif
+		void OnEnvironmentsTearDownStart(const UnitTest& unit_test) override { m_printer->OnEnvironmentsTearDownStart(unit_test); }
+		void OnEnvironmentsTearDownEnd(const UnitTest& unit_test) override { m_printer->OnEnvironmentsTearDownEnd(unit_test); }
+		void OnTestIterationEnd(const UnitTest& unit_test, int iteration) override { m_printer->OnTestIterationEnd(unit_test, iteration); }
+		void OnTestProgramEnd(const UnitTest& unit_test) override { m_printer->OnTestProgramEnd(unit_test); }
+
+	private:
+		::testing::TestEventListener* m_printer;
+	};
+
 	bool UseColor()
 	{
 		const std::string& color = GTEST_FLAG(color);
@@ -116,7 +158,18 @@ void ConsoleOutput::Start()
 {
 	::testing::UnitTest& unit_test = *::testing::UnitTest::GetInstance();
 	::testing::TestEventListeners& listeners = unit_test.listeners();
+	::testing::TestEventListener* defaultPrinter = listeners.default_result_printer();
+	if(defaultPrinter)
+	{
+		defaultPrinter = listeners.Release(defaultPrinter);
+		listeners.Append(new FilteringResultPrinter(defaultPrinter));
+	}
 	listeners.Append(new ConsoleOutput);
+}
+
+void ConsoleOutput::SetCompactTestOutput(bool enabled)
+{
+	compactTestOutput = enabled;
 }
 
 ConsoleOutput::ConsoleOutput()
