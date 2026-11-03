@@ -16,21 +16,29 @@ protected:
 
 };
 
-TEST_F(BlockVectorTest, SmokeTest)
+TEST_F(BlockVectorTest, ReverseIteratorsTraverseAcrossBlocks)
 {
-    block_vector<int> v;
-    v.push_back(1);
-    v.push_back(2);
-    v.push_back(3);
-    ASSERT_EQ(3,v.size());
-    int j = 0;
-    for(const auto & i : v)
+    block_vector<int, 2> values;
+    for(int value = 1; value <= 5; ++value)
     {
-        j++;
-        EXPECT_EQ(j, i);
+        values.push_back(value);
     }
-    v.clear();
-    ASSERT_EQ(0,v.size());
+
+    const int expected[] = {5, 4, 3, 2, 1};
+    int index = 0;
+    for(auto it = values.rbegin(); it != values.rend(); ++it)
+    {
+        EXPECT_EQ(expected[index++], *it);
+    }
+    EXPECT_EQ(5, index);
+
+    const auto& constValues = values;
+    index = 0;
+    for(auto it = constValues.crbegin(); it != constValues.crend(); ++it)
+    {
+        EXPECT_EQ(expected[index++], *it);
+    }
+    EXPECT_EQ(5, index);
 }
 
 TEST_F(BlockVectorTest, EraseReturnsNextElementAcrossBlockBoundary)
@@ -114,3 +122,28 @@ TEST_F(BlockVectorTest, ReplaceTwoAcrossBlockBoundary)
         EXPECT_EQ(expected[index++], value);
     }
 }
+
+TEST_F(BlockVectorTest, BackReturnsLastElement)
+{
+    block_vector<int, 2> values;
+    values.push_back(1);
+    values.push_back(2);
+    values.push_back(3);
+
+    EXPECT_EQ(3, values.back());
+
+    values.back() = 9;
+    EXPECT_EQ(9, values.back());
+    EXPECT_EQ(3, values.size());
+}
+
+TEST_F(BlockVectorTest, ConstBackReturnsLastElement)
+{
+    block_vector<int, 2> values;
+    values.push_back(4);
+    values.push_back(5);
+
+    const block_vector<int, 2>& constValues = values;
+    EXPECT_EQ(5, constValues.back());
+}
+

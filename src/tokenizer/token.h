@@ -9,20 +9,17 @@ class Token
 public:
     typedef uint16_t Data;
 
+    static constexpr Data root = (Data)-1;                   // initial input sequence token
+    static constexpr Data separated = 1<<(sizeof(Data)*8-1); // preceded by separating space
+
+    Data token;
+
     Token()
         : Token(root)
     {}
 
     Token(const Data token)
-        : Token(token, root, root)
-    {}
-
-    Token(const Data token, const Data left,const Data right)
         : token(token)
-        , left(left)
-        , right(right)
-        , count(0)
-        , separator(false)
     {}
 
     Token(const Token &) = default;
@@ -30,17 +27,53 @@ public:
     Token & operator = (const Token &) = default;
     Token & operator = (Token &&) = default;
 
-    static constexpr Data root = (Data)-1;
-
-    Data token;
-    Data left; // todo: see if left+right can and should be removed here.
-    Data right;
-    mutable uint32_t count;
-    mutable bool separator;
-
     bool operator == (const Token & other) const
     {
         return token == other.token;
+    }
+    bool operator != (const Token & other) const
+    {
+        return token != other.token;
+    }
+    bool operator < (const Token & other) const
+    {
+        return token < other.token;
+    }
+    bool operator > (const Token & other) const
+    {
+        return token > other.token;
+    }
+
+    Token & operator ++ ()
+    {
+        ++token;
+        return *this;
+    }
+    Token & operator -- ()
+    {
+        --token;
+        return *this;
+    }
+    Token operator ++ (int)
+    {
+        Token tmp(*this);
+        ++token;
+        return tmp;
+    }
+    Token operator -- (int)
+    {
+        Token tmp(*this);
+        --token;
+        return tmp;
+    }
+
+    bool isSeparator() const
+    {
+        return (token & separated) != 0;
+    }
+    void setSeparator()
+    {
+        token |= separated;
     }
 
     struct HashFunction
@@ -50,5 +83,4 @@ public:
             return std::hash<size_t>()(token.token);
         }
     };
-
 };

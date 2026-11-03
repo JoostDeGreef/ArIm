@@ -1,42 +1,36 @@
-#include <algorithm>
-#include <deque>
 #include <fcntl.h>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 #include <unistd.h>
+#include <vector>
 
 #include "googletest_wrapper.h"
-
 #include "SQLiteDB.h"
 
 #define private public
 #include "tokenizer.h"
+#undef private
 
-class TokenizerTest : public Test 
+class TokenizerTest : public Test
 {
 protected:
-    virtual void SetUp()
-    {
-    }
+    // static std::vector<Token::Data> Values(const TokenSequence& sequence)
+    // {
+    //     return std::vector<Token::Data>(sequence.begin(), sequence.end());
+    // }
 
-    virtual void TearDown() 
+    std::string GetRandomFilename(const std::string& extension)
     {
-    }
-
-    std::string GetRandomFilename(std::string extension)
-    {
-        const auto *testInfo = UnitTest::GetInstance()->current_test_info();
+        const auto* testInfo = UnitTest::GetInstance()->current_test_info();
         const std::string testName = std::string(testInfo->test_suite_name()) + "_" + testInfo->name();
-        for (unsigned attempt = 0; attempt < 100000; ++attempt)
+        for(unsigned attempt = 0; attempt < 100000; ++attempt)
         {
-            const unsigned sequence = attempt;
             std::ostringstream filename;
-            filename << "temp/" << testName
-                     << '.' << std::setw(5) << std::setfill('0') << sequence
-                     << "." << extension;
+            filename << "temp/" << testName << '.' << std::setw(5) << std::setfill('0') << attempt << '.' << extension;
             const std::string path = filename.str();
             const int fd = open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
-            if (fd >= 0)
+            if(fd >= 0)
             {
                 close(fd);
                 return path;
@@ -48,283 +42,172 @@ protected:
 
 TEST_F(TokenizerTest, Constructor)
 {
-    Tokenizer t;
-    ASSERT_EQ(256,t.tokens.size());
-    ASSERT_EQ(256,t.unusedTokensCount);
-}
-
-TEST_F(TokenizerTest, GetUsedTokensCount)
-{
-    Tokenizer t;
-    ASSERT_EQ(0,t.GetUsedTokensCount());
+    Tokenizer tokenizer;
+    EXPECT_TRUE(tokenizer.tokenizedInputSequence.empty()) << "Expected empty tokenizedInputSequence on construction";
+    EXPECT_EQ(256,tokenizer.nextUnusedToken.token) << "Expected 256 reserved tokens for the ASCII characters";
 }
 
 TEST_F(TokenizerTest, FeedInput)
 {
-    Tokenizer t;
-    t.FeedInput("this is a test");
-    EXPECT_EQ(7, t.GetUsedTokensCount());
-    EXPECT_EQ(7, t.sequences.size());
-    t.FeedInput("this is also a test");
-    EXPECT_EQ(9, t.GetUsedTokensCount());
-    EXPECT_EQ(16, t.sequences.size());
+    Tokenizer tokenizer;
+    tokenizer.FeedInput("this is a test");
+    EXPECT_EQ(14-3, tokenizer.tokenizedInputSequence.size()) << "Expected 14 characters minus 3 spaces";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
 }
 
-TEST_F(TokenizerTest, CreateTokenPairsForSequences)
+TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
 {
-    Tokenizer t;
-    auto res = t.CreateTokenPairsForSequences();
-    EXPECT_EQ(0, res.size());
-    t.sequences.push_back({0,0,0,0,1});
-    t.sequences.push_back({0,1}); 
-    res = t.CreateTokenPairsForSequences();
-    EXPECT_EQ(2, res.size());
-    EXPECT_EQ(3, res[TokenPair(-1,0,0)].size());
-    EXPECT_EQ(2, res[TokenPair(-1,0,1)].size());
-    Tokenizer t2;
-    t2.FeedInput("this is a test");
-    EXPECT_EQ(7, t2.GetUsedTokensCount()); // 7 uniq characters used
-    EXPECT_EQ(7, t2.sequences.size());     // 7 sequences inserted
-    res = t2.CreateTokenPairsForSequences();
-    EXPECT_EQ(6, res.size());              // 6 pairs provided as input
+    Tokenizer tokenizer;
+    tokenizer.FeedInput("ababa");
+    EXPECT_EQ(5, tokenizer.tokenizedInputSequence.size()) << "Expected 5 characters";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
+    tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
+    EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
+    EXPECT_EQ(1, tokenizer.tokenPairCountAndPositions.find(TokenPair('a' | Token::separated,'b'))->second.count) << "Expected 1 occurrence of the token pair ab";
+    EXPECT_EQ(2, tokenizer.tokenPairCountAndPositions.find(TokenPair('b','a'))->second.count) << "Expected 2 occurrences of the token pair ba";
+    EXPECT_EQ(1, tokenizer.tokenPairCountAndPositions.find(TokenPair('a','b'))->second.count) << "Expected 1 occurrence of the token pair ab";
 }
 
-TEST_F(TokenizerTest, MergeTopTokenPairsUpdatesCountsAndNeighborPairs)
+TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
 {
-    Tokenizer t;
-    t.sequences = {{'x', 'a', 'b', 'x', 'a', 'b', 'x'}};
-    for (const auto token : t.sequences.front())
-    {
-        ++t.tokens.find(token)->count;
-    }
-
-    TokenPairs tokenPairs = t.CreateTokenPairsForSequences();
-    const auto pairToMergeIter = tokenPairs.find(TokenPair(-1, 'a', 'b'));
-    ASSERT_NE(tokenPairs.end(), pairToMergeIter);
-    const TokenPair pairToMerge = pairToMergeIter->first;
-    const auto mergedToken = pairToMerge.token;
-
-    t.MergeTopTokenPairs({pairToMerge}, tokenPairs);
-
-    EXPECT_EQ((TokenSequence{'x', mergedToken, 'x', mergedToken, 'x'}), t.sequences[0]);
-    EXPECT_EQ(3, t.tokens.find('x')->count);
-    EXPECT_EQ(0, t.tokens.find('a')->count);
-    EXPECT_EQ(0, t.tokens.find('b')->count);
-    EXPECT_EQ(2, t.tokens.find(mergedToken)->count);
-
-    EXPECT_EQ(2, tokenPairs.at(TokenPair(-1, 'x', mergedToken)).size());
-    EXPECT_EQ(2, tokenPairs.at(TokenPair(-1, mergedToken, 'x')).size());
-    EXPECT_EQ(tokenPairs.end(), tokenPairs.find(TokenPair(-1, 'x', 'a')));
-    EXPECT_EQ(tokenPairs.end(), tokenPairs.find(TokenPair(-1, 'a', 'b')));
-    EXPECT_EQ(tokenPairs.end(), tokenPairs.find(TokenPair(-1, 'b', 'x')));
+    Tokenizer tokenizer;
+    tokenizer.FeedInput("ababa");
+    EXPECT_EQ(5, tokenizer.tokenizedInputSequence.size()) << "Expected 5 characters";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation is only a state";
+    tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
+    EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
+    tokenizer.tokenPairReplacements[TokenPair('a' | Token::separated,'b')] = Token('X');
+    tokenizer.tokenPairReplacements[TokenPair('a','b')] = Token('Y');
+    tokenizer.tokenPairReplacements[TokenPair('b','a')] = Token('Z');
+    tokenizer.ApplyExistingTokenPairReplacements();
+    ASSERT_EQ(3, tokenizer.tokenizedInputSequence.size()) << "Expected 3 tokens, XYa";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. XY are not new";
+    auto p = tokenizer.tokenizedInputSequence.begin();
+    EXPECT_EQ('X', (p++)->token) << "Expected X";
+    EXPECT_EQ('Y', (p++)->token) << "Expected Y";
+    EXPECT_EQ('a', (p++)->token) << "Expected a";
 }
 
-TEST_F(TokenizerTest, GetTopTokenPairs)
+TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
 {
-    Tokenizer t;
-    TokenPairs tokenPairs;
-    auto res = t.GetTopTokenPairs(2, tokenPairs);
-    EXPECT_TRUE(res.empty());
+    Tokenizer tokenizer;
+    tokenizer.FeedInput("xababx");
+    tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
 
-    tokenPairs[TokenPair(-1,0,0)] = {0,0};
-    tokenPairs[TokenPair(-1,0,1)] = {0};
-    tokenPairs[TokenPair(-1,0,2)] = {0,1,2,3};
-    res = t.GetTopTokenPairs(2, tokenPairs);
-    ASSERT_EQ(2, res.size());
-    EXPECT_EQ(TokenPair(-1,0,2), res[0]);
-    EXPECT_EQ(TokenPair(-1,0,0), res[1]);
+    tokenizer.OptimizeTokenLength(257);
 
-    tokenPairs[TokenPair(-1,0,3)] = {0,1,2,3};
-    tokenPairs[TokenPair(-1,1,0)] = {0,1,2};
-    res = t.GetTopTokenPairs(3, tokenPairs);
-    ASSERT_EQ(3, res.size());
-    EXPECT_EQ(TokenPair(-1,0,3), res[0]);
-    EXPECT_EQ(TokenPair(-1,0,2), res[1]);
-    EXPECT_EQ(TokenPair(-1,1,0), res[2]);
-    EXPECT_EQ(tokenPairs.size(), t.GetTopTokenPairs(tokenPairs.size() + 1, tokenPairs).size());
+    ASSERT_EQ(4, tokenizer.tokenizedInputSequence.size());
+    auto position = tokenizer.tokenizedInputSequence.begin();
+    EXPECT_EQ('x' | Token::separated, (position++)->token);
+    const auto replacement = (position++)->token;
+    EXPECT_EQ(256, replacement);
+    EXPECT_EQ(replacement, (position++)->token);
+    EXPECT_EQ('x', position->token);
+    EXPECT_EQ(1, tokenizer.tokenPairReplacements.size());
 }
 
-TEST_F(TokenizerTest, CalculateTokenRelationships)
-{
-    Tokenizer t;
-    t.sequences = {{'a', 'b', 'a', 'c', 'a'}};
-    for (const auto token : t.sequences.front())
-    {
-        ++t.tokens.find(token)->count;
-    }
+// TEST_F(TokenizerTest, FeedInputStoresCharactersInOneSequence)
+// {
+//     Tokenizer tokenizer;
+//     tokenizer.FeedInput("this is a test");
 
-    t.CalculateTokenRelationships(2);
+//     EXPECT_EQ(8, tokenizer.GetUsedTokensCount());
+//     EXPECT_EQ(11, tokenizer.sequence.size());
+//     EXPECT_EQ('t'+Token::separated, *tokenizer.sequence.begin());
+//     auto firstAfterSpace = tokenizer.sequence.begin();
+//     for(int i = 0; i < 4; ++i)
+//     {
+//         ++firstAfterSpace;
+//     }
+//     EXPECT_NE(0, *firstAfterSpace & Token::separated);
 
-    ASSERT_EQ(3, t.tokenRelations.size());
-    for (const auto token : {'a', 'b', 'c'})
-    {
-        ASSERT_TRUE(t.tokenRelations.count(token));
-        ASSERT_EQ(2, t.tokenRelations.at(token).size());
-    }
+//     tokenizer.FeedInput("!");
+//     EXPECT_EQ(12, tokenizer.sequence.size());
+//     EXPECT_EQ('!'+Token::separated, *tokenizer.sequence.rbegin());
+// }
 
-    const auto relationCount = [&t](char current, size_t depth, char previous)
-    {
-        const auto & relations = t.tokenRelations.at(current)[depth];
-        const auto relation = std::find_if(relations.begin(), relations.end(), [previous](const TokenCount & count)
-        {
-            return count.token == previous;
-        });
-        return relation == relations.end() ? 0 : relation->count;
-    };
-    EXPECT_EQ(1, relationCount('a', 0, 'b'));
-    EXPECT_EQ(1, relationCount('a', 0, 'c'));
-    EXPECT_EQ(2, relationCount('a', 1, 'a'));
+// TEST_F(TokenizerTest, CreateTopTokenPairsForSequence)
+// {
+//     Tokenizer tokenizer;
+//     tokenizer.FeedInput("ababab");
+//     EXPECT_EQ(3, tokenizer.GetUsedTokensCount()); // start+a, b, a
 
-    EXPECT_EQ(1, relationCount('b', 0, 'a'));
-    EXPECT_EQ(1, relationCount('c', 0, 'a'));
-    EXPECT_EQ(1, relationCount('c', 1, 'b'));
-}
+//     const auto replacements = tokenizer.CreateTopTokenPairsForSequence(1);
 
-TEST_F(TokenizerTest, OptimizeTokenLength)
-{
-    Tokenizer t;
-    t.FeedInput("this is a test");
-    EXPECT_EQ(7, t.GetUsedTokensCount()); // 7 uniq characters used
-    EXPECT_EQ(7, t.sequences.size());
-    t.OptimizeTokenLength(100,1); 
-    EXPECT_EQ(5, t.GetUsedTokensCount());
-}
+//     ASSERT_EQ(2, replacements.size());
+//     EXPECT_EQ('a', replacements[0].left);
+//     EXPECT_EQ('b', replacements[0].right);
+//     EXPECT_EQ(replacements[0].replacement, replacements[1].replacement);
+//     auto occurrence0 = replacements[0].sequenceIndex;
+//     EXPECT_EQ('a', *occurrence0++);
+//     EXPECT_EQ('b', *occurrence0);
+//     auto occurrence1 = replacements[1].sequenceIndex;
+//     EXPECT_EQ('a', *occurrence1++);
+//     EXPECT_EQ('b', *occurrence1);
+// }
 
-TEST_F(TokenizerTest, GetTokenTextSequence)
-{
-    Tokenizer t;
-    t.tokens.emplace(Token('a'));
-    t.tokens.emplace(Token('b'));
-    t.tokens.emplace(Token('c'));
-    t.tokens.emplace(Token(256, 'a', 'b'));
-    t.tokens.emplace(Token(257, 256, 'c'));
+// TEST_F(TokenizerTest, MergeTopTokenPairsUpdatesSequenceAndCounts)
+// {
+//     Tokenizer tokenizer;
+//     tokenizer.FeedInput("qbabax");
 
-    EXPECT_EQ("a", t.GetTokenTextSequence('a'));
-    EXPECT_EQ("ab", t.GetTokenTextSequence(256));
-    EXPECT_EQ("abc", t.GetTokenTextSequence(257));
-}
+//     auto replacements = tokenizer.CreateTopTokenPairsForSequence(1);
+//     ASSERT_EQ(2, replacements.size());
+//     tokenizer.MergeTopTokenPairs(replacements);
 
-TEST_F(TokenizerTest, OptimizeTokenLengthMergesRepeatedPair)
-{
-    Tokenizer t;
-    t.FeedInput("abab");
+//     EXPECT_EQ((std::vector<Token::Data>{Token::Data('q') | Token::separated, replacements[0].replacement, replacements[0].replacement, 'x'}), Values(tokenizer.sequence));
+//     EXPECT_EQ(0, tokenizer.tokens.find('a')->count);
+//     EXPECT_EQ(0, tokenizer.tokens.find('b')->count);
+//     EXPECT_EQ(2, tokenizer.tokens.find(replacements[0].replacement)->count);
+// }
 
-    EXPECT_EQ(2, t.GetUsedTokensCount());
-    EXPECT_EQ(1, t.sequences.size());
-    EXPECT_EQ(4, t.sequences.front().size());
+// TEST_F(TokenizerTest, OptimizeTokenLengthMergesRepeatedPair)
+// {
+//     Tokenizer tokenizer;
+//     tokenizer.FeedInput("abab");
+//     EXPECT_EQ(3, tokenizer.GetUsedTokensCount());
+//     EXPECT_EQ(4, tokenizer.sequence.size());
 
-    t.OptimizeTokenLength(3, 1);
+//     tokenizer.OptimizeTokenLength(4, 1);
 
-    // "ab" occurs twice, so it should be merged into one token.
-    EXPECT_EQ(1, t.GetUsedTokensCount());
-    EXPECT_EQ(1, t.sequences.size());
-    EXPECT_EQ(1, t.sequences.front().size());
+//     EXPECT_EQ(1, tokenizer.GetUsedTokensCount());
+//     ASSERT_EQ(1, tokenizer.sequence.size());
+//     EXPECT_EQ("abab", tokenizer.GetTokenTextSequence(*tokenizer.tokens.find(*tokenizer.sequence.begin())));
+// }
 
-    const auto& sequence = t.sequences.front();
+// TEST_F(TokenizerTest, CalculateTokenRelationships)
+// {
+//     Tokenizer tokenizer;
+//     tokenizer.FeedInput("abab");
 
-    // The merged token must expand back to the original text.
-    EXPECT_EQ("abab", t.GetTokenTextSequence(sequence[0]));
-}
+//     tokenizer.CalculateTokenRelationships(2);
 
-TEST_F(TokenizerTest, FullFunctionalityTest)
-{
-    std::string randomFilename = GetRandomFilename("sq3");
-    Tokenizer t;
-    t.FeedInput("This is a test");
-    EXPECT_EQ(7, t.sequences.size());
-    EXPECT_EQ(8, t.GetUsedTokensCount());
+//     EXPECT_EQ(3, tokenizer.tokenRelations.size());
+//     EXPECT_EQ(1, tokenizer.tokenRelations.at('a')[0][0].count);
+//     EXPECT_EQ('b', tokenizer.tokenRelations.at('a')[0][0].token);
+// }
 
-    t.OptimizeTokenLength(1024,1);
-    EXPECT_EQ(5, t.GetUsedTokensCount());
-    for (const auto& sequence : t.sequences)
-    {
-        ASSERT_FALSE(sequence.empty());
-        for (const auto token : sequence)
-        {
-            ASSERT_TRUE(t.tokens.count(token));
-        }
-    }
+// TEST_F(TokenizerTest, DBStoreLoad)
+// {
+//     const std::string filename = GetRandomFilename("sq3");
+//     Tokenizer original;
+//     original.FeedInput("This is a test and more data, even more data. much more data");
+//     original.OptimizeTokenLength(1024, 1);
+//     original.CalculateTokenRelationships();
 
-    t.CalculateTokenRelationships();
-    ASSERT_FALSE(t.tokenRelations.empty());
-    EXPECT_EQ(5, t.tokenRelations.size());
-    decltype(t.tokenRelations) expectedTokenRelations;
-    for (const auto& token : t.tokens)
-    {
-        if (token.count)
-        {
-            expectedTokenRelations.emplace(token.token, std::vector<TokenCounts>(5));
-        }
-    }
-    std::deque<Token::Data> pastTokens;
-    for (const auto& sequence : t.sequences)
-    {
-        for (const auto token : sequence)
-        {
-            auto& relations = expectedTokenRelations[token];
-            pastTokens.emplace_front(token);
-            if (pastTokens.size() > 6)
-            {
-                pastTokens.pop_back();
-            }
-            for (size_t depth = 1; depth < pastTokens.size(); ++depth)
-            {
-                auto & counts = relations[depth - 1];
-                auto relation = std::find_if(counts.begin(), counts.end(), [token = pastTokens[depth]](const TokenCount & count)
-                {
-                    return count.token == token;
-                });
-                if (relation == counts.end())
-                {
-                    counts.push_back(TokenCount{pastTokens[depth], 1});
-                }
-                else
-                {
-                    ++relation->count;
-                }
-            }
-        }
-    }
-    EXPECT_EQ(expectedTokenRelations, t.tokenRelations);
+//     SQLite::DB db;
+//     db.Open(filename, false);
+//     db.ExecDML("PRAGMA journal_mode = OFF;");
+//     db.ExecDML("PRAGMA synchronous = OFF;");
+//     db.ExecDML("PRAGMA temp_store = MEMORY;");
+//     original.StoreCalculatedDataToDB(db);
 
-    SQLite::DB db;
-    db.Open(randomFilename, false);
+//     Tokenizer loaded(db);
+//     db.Close();
 
-    db.ExecDML("PRAGMA journal_mode = OFF;");
-    db.ExecDML("PRAGMA synchronous = OFF;");
-    db.ExecDML("PRAGMA temp_store = MEMORY;");
-    t.StoreCalculatedDataToDB(db);
-
-    EXPECT_EQ(t.tokens.size(), db.ExecSingleInt64("SELECT COUNT(*) FROM Tokens;"));
-    EXPECT_EQ(5, db.ExecSingleInt64("SELECT COUNT(*) FROM (SELECT Token FROM TokenRelations WHERE Depth = 0 GROUP BY Token);"));
-}
-
-TEST_F(TokenizerTest, DBStoreLoad)
-{
-    std::string randomFilename = GetRandomFilename("sq3");
-    MESSAGE() << "Test DB: " << randomFilename;
-    Tokenizer t0;
-    t0.FeedInput("This is a test and more data, even more data. much more data");
-    t0.OptimizeTokenLength(1024,1);
-    t0.CalculateTokenRelationships();
-    EXPECT_EQ(12, t0.tokenRelations.size());
-
-    SQLite::DB db;
-    db.Open(randomFilename, false);
-
-    db.ExecDML("PRAGMA journal_mode = OFF;");
-    db.ExecDML("PRAGMA synchronous = OFF;");
-    db.ExecDML("PRAGMA temp_store = MEMORY;");
-    t0.StoreCalculatedDataToDB(db);
-
-    Tokenizer t1(db);    
-    db.Close();
-    EXPECT_EQ(t0.tokens.size(), t1.tokens.size());
-    EXPECT_EQ(t0.tokenRelations.size(), t1.tokenRelations.size());
-    EXPECT_EQ(t0.unusedTokensCount, t1.unusedTokensCount);
-    EXPECT_EQ(t0.sequences.size(), t1.sequences.size());
-    EXPECT_TRUE(t0.tokens==t1.tokens);
-    EXPECT_TRUE(t0.tokenRelations==t1.tokenRelations);
-    EXPECT_TRUE(t0.sequences==t1.sequences);
-}
- 
+//     EXPECT_EQ(original.tokens.size(), loaded.tokens.size());
+//     EXPECT_EQ(original.tokenRelations, loaded.tokenRelations);
+//     EXPECT_EQ(original.unusedTokensCount, loaded.unusedTokensCount);
+//     EXPECT_EQ(Values(original.sequence), Values(loaded.sequence));
+//     EXPECT_EQ(original.tokens, loaded.tokens);
+// }

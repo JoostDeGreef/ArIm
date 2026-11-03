@@ -2,17 +2,21 @@
 
 #include <array>
 #include <cassert>
+#include <cstddef>
+#include <iterator>
 #include <memory>
+#include <type_traits>
 
 template<typename T, size_t block_size = 256>
 class block_vector
 {
     struct block
     {
-        std::array<T, block_size> m_data;
-        block* m_prev = nullptr;
-        block* m_next = nullptr;
-        size_t m_used = 0;
+        std::array<T, block_size> m_data; // array of elements in this block
+        block* m_prev = nullptr;          // pointer to the previous block in the list, or nullptr if this is the first block
+        block* m_next = nullptr;          // pointer to the next block in the list, or nullptr if this is the last block
+        size_t m_used = 0;                // number of elements used in this block
+        size_t m_order = 0;               // used for sorting block iterators
     };
 
     block* m_first = nullptr;
@@ -20,25 +24,109 @@ class block_vector
     size_t m_used = 0;
 
 public:
-    class iterator
+    template<typename ITERATOR, bool IS_CONST, bool IS_REVERSE = false>
+    struct iterator_impl
     {
-        friend block_vector;
-    public:
-        iterator(block * b, size_t index) : m_block(b), m_index(index) {}
-        T& operator*() const { return m_block->m_data[m_index]; }
-        T* operator->() const { return &m_block->m_data[m_index]; }
-        iterator& operator++() { if(++m_index>=m_block->m_used) { m_block = m_block->m_next; m_index = 0; }; return *this; }
-        bool operator==(const iterator& other) const
-        { return (m_block == other.m_block) && (!m_block || (other.m_index == m_index)); }
-        bool operator!=(const iterator& other) const
-        { return !(*this == other); }
+        using block_pointer = typename std::conditional<IS_CONST, const block*, block*>::type;
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using reference = typename std::conditional<IS_CONST, const T&, T&>::type;
+        using pointer = typename std::conditional<IS_CONST, const T*, T*>::type;
+
+        iterator_impl(block_pointer b, size_t index) : m_block(b), m_index(index) {}
+        reference operator*() const { return m_block->m_data[IS_REVERSE ? m_block->m_used - 1 - m_index : m_index]; }
+        pointer operator->() const { return &m_block->m_data[IS_REVERSE ? m_block->m_used - 1 - m_index : m_index]; }
+        ITERATOR& operator++()
+        {
+            if(++m_index >= m_block->m_used) 
+            { 
+                m_block = IS_REVERSE ? m_block->m_prev : m_block->m_next; 
+                m_index = 0; 
+            }
+            return static_cast<ITERATOR&>(*this);
+        }
+        ITERATOR operator++(int)
+        {
+            ITERATOR previous = static_cast<ITERATOR&>(*this);
+            ++(*this);
+            return previous;
+        }
+        bool operator==(const ITERATOR& other) const
+        {
+            if(m_block == other.m_block)
+            {
+                return !m_block || other.m_index == m_index;
+            }
+            // const bool this_end = m_block && !m_block->m_next && m_index == m_block->m_used;
+            // const bool other_end = other.m_block && !other.m_block->m_next && other.m_index == other.m_block->m_used;
+            // return (this_end && !other.m_block) || (other_end && !m_block);
+            return false;
+        }
+        bool operator!=(const ITERATOR& other) const 
+        { 
+            return !(*this == other); 
+        }
+        bool operator < (const ITERATOR & other) const
+        {
+            if(m_block->m_order == other.m_block->m_order)
+            {
+                return m_index < other.m_index;
+            }
+            else
+            {
+                return m_block->m_order < other.m_block->m_order;
+            }
+        }
+        bool operator > (const ITERATOR & other) const
+        {
+            return other < static_cast<const ITERATOR&>(*this);
+        }
+
     private:
-        block* m_block;
+        friend class block_vector;
+        block_pointer m_block;
         size_t m_index;
     };
 
+    class iterator : public iterator_impl<iterator, false>
+    {
+    public:
+        using iterator_impl<iterator, false>::iterator_impl;
+    };
+
+    class const_iterator : public iterator_impl<const_iterator, true>
+    {
+    public:
+        using iterator_impl<const_iterator, true>::iterator_impl;
+    };
+
+    class reverse_iterator : public iterator_impl<reverse_iterator, false, true>
+    {
+    public:
+        using iterator_impl<reverse_iterator, false, true>::iterator_impl;
+    };
+
+    class const_reverse_iterator : public iterator_impl<const_reverse_iterator, true, true>
+    {
+    public:
+        using iterator_impl<const_reverse_iterator, true, true>::iterator_impl;
+    };
+
+    const_iterator cbegin() const;
+    const_iterator cend() const;
+    const_iterator begin() const;
+    const_iterator end() const;
     iterator begin();
     iterator end();
+    reverse_iterator rbegin();
+    reverse_iterator rend();
+    const_reverse_iterator rbegin() const;
+    const_reverse_iterator rend() const;
+    const_reverse_iterator crbegin() const;
+    const_reverse_iterator crend() const;
+    const_reverse_iterator rcbegin() const;
+    const_reverse_iterator rcend() const;
 
     ~block_vector();
 
@@ -50,6 +138,19 @@ public:
     // insert a value as the last value
     void push_back(const T& value);
 
+    // return a reference to the last value
+    T & back()
+    {
+        assert(m_last != nullptr);
+        return m_last->m_data[m_last->m_used - 1];  
+    }
+    const T & back() const
+    {
+        assert(m_last != nullptr);
+        return m_last->m_data[m_last->m_used - 1];  
+    }
+
+    // todo: remove the erase and replace_two functions, if they are really not used
     // erase one value at position and return the iterator to the next value
     iterator erase(iterator position);
 
@@ -69,6 +170,78 @@ template<typename T, size_t block_size>
 typename block_vector<T, block_size>::iterator block_vector<T, block_size>::end()
 {
     return iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_iterator block_vector<T, block_size>::cbegin() const
+{
+    return const_iterator(m_first, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_iterator block_vector<T, block_size>::cend() const
+{
+    return const_iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_iterator block_vector<T, block_size>::begin() const
+{
+    return const_iterator(m_first, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_iterator block_vector<T, block_size>::end() const
+{
+    return const_iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::reverse_iterator block_vector<T, block_size>::rbegin()
+{
+    return reverse_iterator(m_last, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::reverse_iterator block_vector<T, block_size>::rend()
+{
+    return reverse_iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::rbegin() const
+{
+    return const_reverse_iterator(m_last, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::rend() const
+{
+    return const_reverse_iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::crbegin() const
+{
+    return const_reverse_iterator(m_last, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::crend() const
+{
+    return const_reverse_iterator(nullptr, 0);
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::rcbegin() const
+{
+    return crbegin();
+}
+
+template<typename T, size_t block_size>
+typename block_vector<T, block_size>::const_reverse_iterator block_vector<T, block_size>::rcend() const
+{
+    return crend();
 }
 
 template<typename T, size_t block_size>
@@ -174,6 +347,7 @@ void block_vector<T, block_size>::push_back(const T& value)
         m_last->m_next = new block;
         m_last->m_next->m_prev = m_last;
         m_last = m_last->m_next;
+        m_last->m_order = m_last->m_prev->m_order + 1;
     }
     m_last->m_data[m_last->m_used++] = value;
     ++m_used;

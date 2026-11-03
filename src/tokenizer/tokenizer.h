@@ -8,38 +8,18 @@
 #include <unordered_set>
 
 #include "db.h"
+#include "countandposition.h"
+#include "linked_list.h"
 #include "token.h"
 #include "tokenpair.h"
-
-// TokenPairs stores the index of each sequence the TokenPair is used in
-typedef std::unordered_map<TokenPair,std::multiset<size_t>,TokenPair::HashFunction> TokenPairs;
-// Set of tokens
-typedef std::unordered_set<Token,Token::HashFunction> TokensSet;
-// Vector with sequences of Token::Data
-typedef std::vector<Token::Data> TokenSequence;
-typedef std::vector<TokenSequence> TokenSequences;
-// vector with sequence ot TokenData
-typedef std::vector<TokenPair> TokenPairSequence;
-// vector with only the token and a count;
-struct TokenCount
-{
-    Token::Data token;
-    size_t count;
-    bool operator==(const TokenCount & other) const
-    {
-        return token == other.token && count == other.count;
-    }
-};
-typedef std::vector<TokenCount> TokenCounts;
 
 /*
  * Tokenizer class for tokenizing input text into tokens. 
  *
  * Normal operation steps:
- *   1. Feed input text to the tokenizer
- *   2. Optimize token length until the maximum (used) token count is reached or no more text is available
- *   3. Calculate token relationships
- *   4. Store the results
+ *   1. Optional: load existing tokenisation from db
+ *   2. Feed data to 'Process()'
+ *   3. Store the results to db
  */
 class Tokenizer 
 {   
@@ -52,52 +32,52 @@ public:
     Tokenizer& operator=(const Tokenizer&) = delete;
     Tokenizer& operator=(Tokenizer&&) = delete;
 
-    // 1. add text to the tokenizer. can be called repeatedly
-    void FeedInput(const std::string& input); 
+    // Add text to the tokenizer. can be called repeatedly
+    void Process(const std::string& input); 
 
-    // 2. combine smaller tokens until the list of tokens used reaches n, in blocks of step.
-    //    lower number of steps gives more accurate result, but takes longer
-    void OptimizeTokenLength(size_t n = 1024, size_t step = 5);
-
-    // 3. store all token relations found in input up to depth 
-    void CalculateTokenRelationships(size_t depth = 5); 
-
-    // 4. store token sequences and token relationships to a database
-    void StoreCalculatedDataToDB(SQLite::DB & db) const;
+    // Store tokenizer state to a database
+    void StoreTokenizerToDB(SQLite::DB & db) const;
 
 private:
-    // all tokens, intermediate nodes and root nodes
-    TokensSet tokens; 
-    size_t unusedTokensCount = 0;
+    struct Settings
+    {
+        size_t version         = 1;    // version for the db. increase if anything breaking gets introduced.
+        size_t relationDepth   = 5;    // number of tokens to keep a relationship with
+        size_t tokenDictionary = 1024; // number of tokens to build a dictionary for
+    } settings;
 
-    // input data split in token sequences
-    TokenSequences sequences;
+    // input data split in tokens
+    linked_list<Token> tokenizedInputSequence;
 
-    // the relationship between any token and the n tokens before it
-    // this map has less items than tokens, unused tokens are ignored
-    // combining tokens and tokenRelations _migth_ work, but measure results
-    std::unordered_map<Token::Data,std::vector<TokenCounts>> tokenRelations;
+    // next unused token value, used to create new tokens when merging token pairs
+    Token nextUnusedToken;
 
-    /*
-     *   internal functions
-     */
+    // count and position of each tokenpair in 'tokens'
+    std::unordered_map<TokenPair,CountAndPosition,TokenPair::HashFunction> tokenPairCountAndPositions;
 
-    // return the number of used tokens
-    size_t GetUsedTokensCount() const;
+    // keep track of what token pair was replaced with which token
+    // needed for reconstruction of input sequence
+    std::unordered_map<TokenPair,Token,TokenPair::HashFunction> tokenPairReplacements;
 
-    // create tokenpairs for every sequence in sequences
-    TokenPairs CreateTokenPairsForSequences();
+    // map with a counted dictionary with the preceding tokens listed for each token
+    std::unordered_map<Token,std::unordered_map<Token,size_t,Token::HashFunction>,Token::HashFunction> tokenRelationships;
 
-    // collect the tokenpairs found in all sequences, and report the top n pairs found
-    TokenPairSequence GetTopTokenPairs(size_t n, const TokenPairs & tokenPairs) const;
+    // Add text to the tokenizer. can be called repeatedly
+    // This adds tokens to the back of tokenizedInputSequence and updates the tokenCounts map
+    void FeedInput(const std::string& input); 
 
-    // update sequences, tokenPairs, and tokens by merging any pairs found in pairsForMerging 
-    void MergeTopTokenPairs(const TokenPairSequence & pairsForMerging, TokenPairs & tokenPairs);
+    // void update the count and position of a tokenpair starting at a given position in the sequence
+    void UpdateTokenPairCountAndPositions(linked_list<Token>::iterator position);
 
-    // get the original text sequence the token represents
-    std::string GetTokenTextSequence(const Token & token) const;
+    // used the existing tokenPairReplacements on the tokenizedInputSequence
+    void ApplyExistingTokenPairReplacements();
 
-    // load the data from db
+    // join tokens until the maximum (used) token count is reached or no more text is available
+    void OptimizeTokenLength(size_t maxUsedTokensCount);
+
+    // determine the token relationships
+    void CalculateTokenRelationships(size_t depth);
+
+    // load the tokenizer state from a database
     void LoadDataFromDB(SQLite::DB & db);
-
 };
