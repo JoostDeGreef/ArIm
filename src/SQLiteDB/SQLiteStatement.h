@@ -27,6 +27,7 @@ namespace sqlite
         void Bind(int param, const long long value);
         void Bind(int param, const double value);
         void Bind(int param, const unsigned char* value, int length);
+        void Bind(int param, const unsigned long value);
         void BindNull(int param);
         void Reset();
         void Finalize();

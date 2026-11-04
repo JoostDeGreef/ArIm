@@ -137,14 +137,15 @@ public:
         using IteratorImpl<ConstReverseIterator, true, true>::IteratorImpl;
     };
 
+    // todo: this is a mess. begin/end and similar should not use capitalisation.
     ConstIterator CBegin() const;
     ConstIterator CEnd() const;
     ConstIterator Begin() const;
     ConstIterator End() const;
     Iterator Begin();
     Iterator End();
-    ConstIterator begin() const { return Begin(); }
-    ConstIterator end() const { return End(); }
+    ConstIterator begin() const { return CBegin(); }
+    ConstIterator end() const { return CEnd(); }
     Iterator begin() { return Begin(); }
     Iterator end() { return End(); }
     ReverseIterator RBegin();

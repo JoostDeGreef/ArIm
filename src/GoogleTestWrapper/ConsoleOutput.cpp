@@ -67,7 +67,7 @@ namespace
 		if (color == "yes") return true;
 		if (color == "no") return false;
 #if defined(WIN32)
-		return Isatty(Fileno(stdout)) != 0;
+		return _isatty(_fileno(stdout)) != 0;
 #else
 		return isatty(fileno(stdout)) != 0;
 #endif

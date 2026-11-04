@@ -49,6 +49,10 @@ TEST_F(TokenizerTest, FeedInput)
     tokenizer.FeedInput("this is a test");
     EXPECT_EQ(14-3, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 14 characters minus 3 spaces";
     EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation/start is only a state";
+    auto position = tokenizer.m_tokenizedInputSequence.begin();
+    EXPECT_EQ('t', (position++)->GetData());
+    std::advance(position, 3);
+    EXPECT_EQ(Token('i', true), *position);
 }
 
 TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
@@ -58,10 +62,9 @@ TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
     EXPECT_EQ(5, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 5 characters";
     EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation/start is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.m_tokenizedInputSequence.begin());
-    EXPECT_EQ(3, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
-    EXPECT_EQ(1, tokenizer.m_tokenPairCountAndPositions.find(TokenPair('a' | Token::SeparatorBit,'b'))->second.count) << "Expected 1 occurrence of the token pair ab";
+    EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected the two pairs ab and ba";
     EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.find(TokenPair('b','a'))->second.count) << "Expected 2 occurrences of the token pair ba";
-    EXPECT_EQ(1, tokenizer.m_tokenPairCountAndPositions.find(TokenPair('a','b'))->second.count) << "Expected 1 occurrence of the token pair ab";
+    EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.find(TokenPair('a','b'))->second.count) << "Expected 2 occurrences of the token pair ab";
 }
 
 TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
@@ -71,15 +74,14 @@ TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
     EXPECT_EQ(5, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 5 characters";
     EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.m_tokenizedInputSequence.begin());
-    EXPECT_EQ(3, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
-    tokenizer.m_tokenPairReplacements[TokenPair('a' | Token::SeparatorBit,'b')] = Token('X');
+    EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected the two pairs ab and ba";
     tokenizer.m_tokenPairReplacements[TokenPair('a','b')] = Token('Y');
     tokenizer.m_tokenPairReplacements[TokenPair('b','a')] = Token('Z');
     tokenizer.ApplyExistingTokenPairReplacements();
-    ASSERT_EQ(3, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 3 tokens, XYa";
+    ASSERT_EQ(3, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 3 tokens, YYa";
     EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. XY are not new";
     auto p = tokenizer.m_tokenizedInputSequence.begin();
-    EXPECT_EQ('X', (p++)->GetData()) << "Expected X";
+    EXPECT_EQ('Y', (p++)->GetData()) << "Expected Y";
     EXPECT_EQ('Y', (p++)->GetData()) << "Expected Y";
     EXPECT_EQ('a', (p++)->GetData()) << "Expected a";
 }
@@ -105,19 +107,165 @@ TEST_F(TokenizerTest, CalculateTokenRelationshipsCountsPrecedingTokensByDepth)
 
     tokenizer.CalculateTokenRelationships();
 
-    const Token separatedA('a', true);
     const Token a('a');
     const Token b('b');
-    ASSERT_EQ(3, tokenizer.m_tokenRelationships.size());
+    ASSERT_EQ(2, tokenizer.m_tokenRelationships.size());
 
     const auto& bRelationships = tokenizer.m_tokenRelationships.at(b);
-    EXPECT_EQ(1, bRelationships[0].at(separatedA));
-    EXPECT_EQ(1, bRelationships[0].at(a));
+    EXPECT_EQ(2, bRelationships[0].at(a));
     EXPECT_EQ(1, bRelationships[1].at(b));
 
     const auto& aRelationships = tokenizer.m_tokenRelationships.at(a);
     EXPECT_EQ(2, aRelationships[0].at(b));
-    EXPECT_EQ(1, aRelationships[1].at(a));
+    EXPECT_EQ(2, aRelationships[1].at(a));
+}
+
+TEST_F(TokenizerTest, StoreAndLoadRoundTripPreservesInput)
+{
+    const std::string input = "The tokenizer stores and reloads this input.";
+    Tokenizer original;
+    original.Process(input);
+
+    auto getInputText = [](const Tokenizer& tokenizer)
+    {
+        std::string text;
+        for(auto position = tokenizer.m_tokenizedInputSequence.begin();
+            position != tokenizer.m_tokenizedInputSequence.end(); ++position)
+        {
+            text += tokenizer.GetTokenTextSequence(*position);
+        }
+        return text;
+    };
+
+    sqlite::DB db;
+    db.Open(sqlite::DB::MemoryDB, false);
+    original.StoreTokenizerToDB(db);
+
+    Tokenizer loaded;
+    loaded.LoadDataFromDB(db);
+
+    EXPECT_EQ(input, getInputText(original));
+    EXPECT_EQ(getInputText(original), getInputText(loaded));
+    EXPECT_EQ(original.m_tokenPairReplacements, loaded.m_tokenPairReplacements);
+    EXPECT_EQ(original.m_tokenReplacements, loaded.m_tokenReplacements);
+    EXPECT_EQ(original.m_tokenRelationships, loaded.m_tokenRelationships);
+    EXPECT_EQ(original.m_nextUnusedToken, loaded.m_nextUnusedToken);
+    size_t originalActivePairCount = 0;
+    size_t loadedActivePairCount = 0;
+    for(const auto& [tokenPair, countAndPosition] : original.m_tokenPairCountAndPositions)
+    {
+        if(countAndPosition.count == 0)
+        {
+            continue;
+        }
+        ++originalActivePairCount;
+        const auto loadedCountAndPosition = loaded.m_tokenPairCountAndPositions.find(tokenPair);
+        ASSERT_NE(loaded.m_tokenPairCountAndPositions.end(), loadedCountAndPosition);
+        EXPECT_EQ(countAndPosition.count, loadedCountAndPosition->second.count);
+        EXPECT_EQ(countAndPosition.positions.size(), loadedCountAndPosition->second.positions.size());
+    }
+    for(const auto& [tokenPair, countAndPosition] : loaded.m_tokenPairCountAndPositions)
+    {
+        (void)tokenPair;
+        if(countAndPosition.count != 0) ++loadedActivePairCount;
+    }
+    EXPECT_EQ(originalActivePairCount, loadedActivePairCount);
+}
+
+TEST_F(TokenizerTest, StoreAndLoadReadsBlobChunksAcrossRecordBoundaries)
+{
+    std::string input;
+    input.reserve(4096);
+    for(size_t i = 0; i < 4096; ++i)
+    {
+        input.push_back(static_cast<char>('a' + (i * 17) % 26));
+    }
+
+    Tokenizer original;
+    original.FeedInput(input);
+    original.UpdateTokenPairCountAndPositions(original.m_tokenizedInputSequence.begin());
+    original.CalculateTokenRelationships();
+    // Keep an entry with no connected-token values to check that empty depth
+    // maps survive the grouped relationship serialization too.
+    original.m_tokenRelationships.emplace(Token(900), decltype(original.m_tokenRelationships)::mapped_type{});
+    for(Token::Data value = 256; value < 456; ++value)
+    {
+        const TokenPair tokenPair(Token('a'), Token(value));
+        const Token replacement(static_cast<Token::Data>(value + 256));
+        original.m_tokenPairReplacements.emplace(tokenPair, replacement);
+        original.m_tokenReplacements.emplace(replacement, tokenPair);
+    }
+    original.m_nextUnusedToken.SetData(712);
+
+    sqlite::DB db;
+    db.Open(sqlite::DB::MemoryDB, false);
+    original.StoreTokenizerToDB(db);
+    EXPECT_GT(db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenizedInputSequence;"), 1024);
+    EXPECT_GT(db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenPairReplacements;"), 1024);
+    EXPECT_GT(db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenRelations;"), 1024);
+
+    size_t expectedRelationshipBytes = 0;
+    for(const auto& [token, relationsByDepth] : original.m_tokenRelationships)
+    {
+        (void)token;
+        expectedRelationshipBytes += sizeof(Token::Data) +
+            relationsByDepth.size() * sizeof(size_t);
+        for(const auto& relations : relationsByDepth)
+        {
+            expectedRelationshipBytes += relations.size() * (sizeof(Token::Data) + sizeof(size_t));
+        }
+    }
+    EXPECT_EQ(expectedRelationshipBytes,
+        db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenRelations;"));
+
+    Tokenizer loaded;
+    loaded.LoadDataFromDB(db);
+
+    auto getInputText = [](const Tokenizer& tokenizer)
+    {
+        std::string text;
+        for(auto position = tokenizer.m_tokenizedInputSequence.begin();
+            position != tokenizer.m_tokenizedInputSequence.end(); ++position)
+        {
+            text += tokenizer.GetTokenTextSequence(*position);
+        }
+        return text;
+    };
+    EXPECT_EQ(input, getInputText(loaded));
+    EXPECT_EQ(original.m_tokenPairReplacements, loaded.m_tokenPairReplacements);
+    EXPECT_EQ(original.m_tokenReplacements, loaded.m_tokenReplacements);
+    EXPECT_EQ(original.m_tokenRelationships, loaded.m_tokenRelationships);
+    ASSERT_EQ(original.m_tokenPairCountAndPositions.size(), loaded.m_tokenPairCountAndPositions.size());
+}
+
+TEST_F(TokenizerTest, StoreAndLoadHandlesEmptyTokenizer)
+{
+    sqlite::DB db;
+    db.Open(sqlite::DB::MemoryDB, false);
+
+    Tokenizer original;
+    original.StoreTokenizerToDB(db);
+
+    Tokenizer loaded;
+    EXPECT_NO_THROW(loaded.LoadDataFromDB(db));
+    EXPECT_TRUE(loaded.m_tokenizedInputSequence.Empty());
+    EXPECT_TRUE(loaded.m_tokenPairReplacements.empty());
+    EXPECT_TRUE(loaded.m_tokenRelationships.empty());
+    EXPECT_EQ(original.m_nextUnusedToken, loaded.m_nextUnusedToken);
+}
+
+TEST_F(TokenizerTest, LoadRejectsIncompatibleConfiguration)
+{
+    sqlite::DB db;
+    db.Open(sqlite::DB::MemoryDB, false);
+
+    Tokenizer original;
+    original.FeedInput("configuration check");
+    original.StoreTokenizerToDB(db);
+    db.ExecDML("UPDATE Settings SET Value = Value + 1 WHERE Setting = 'RelationDepth';");
+
+    Tokenizer loaded;
+    EXPECT_THROW(loaded.LoadDataFromDB(db), std::runtime_error);
 }
 
 // TEST_F(TokenizerTest, FeedInputStoresCharactersInOneSequence)

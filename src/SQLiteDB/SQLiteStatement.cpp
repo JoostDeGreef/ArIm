@@ -125,6 +125,13 @@ void Statement::Bind(int param, const long long value)
     ThrowErrorIfNotOK("Error binding int64 param", ret);
 }
 
+void Statement::Bind(int param, const unsigned long value)
+{
+    m_state->Check();
+    int ret = sqlite3_bind_int64(m_state->m_statement.get(), param, value);
+    ThrowErrorIfNotOK("Error binding int64 (unsigned long) param", ret);
+}
+
 void Statement::Bind(int param, const double value)
 {
     m_state->Check();

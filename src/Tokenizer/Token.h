@@ -10,9 +10,9 @@ class Token
 public:
     typedef uint16_t Data;
 
-    static constexpr Data Root = (Data)-1;                    // initial input sequence token
+    static constexpr Data Root = (Data)-1;                      // initial input sequence token
     static constexpr Data SeparatorBit = 1<<(sizeof(Data)*8-1); // preceded by separating space
-    static constexpr Data NumberMask = Root >> 1;             // mask for the token number
+    static constexpr Data NumberMask = Root >> 1;               // mask for the token number
 
 private:
     Data m_data;

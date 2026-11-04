@@ -4,6 +4,7 @@
 #include <map>
 #include <unordered_set>
 #include <set>
+#include <stdexcept>
 
 #include "Tokenizer.h"
 
@@ -14,6 +15,7 @@ Tokenizer::Tokenizer()
     , m_nextUnusedToken(256)
     , m_tokenPairCountAndPositions()
     , m_tokenPairReplacements()
+    , m_tokenReplacements()
     , m_tokenRelationships()
 {}
 
@@ -38,7 +40,7 @@ void Tokenizer::Process(const std::string& input)
 
 void Tokenizer::FeedInput(const std::string& input)
 {
-    bool separated = true;
+    bool separated = !m_tokenizedInputSequence.Empty();
     for(uint8_t c: input)
     {
         if(isspace(c))
@@ -55,6 +57,10 @@ void Tokenizer::FeedInput(const std::string& input)
 
 void Tokenizer::UpdateTokenPairCountAndPositions(LinkedList<Token>::Iterator position)
 {
+    if(position == m_tokenizedInputSequence.end())
+    {
+        position = m_tokenizedInputSequence.begin();
+    }
     if(position == m_tokenizedInputSequence.end())
     {
         return;
@@ -183,11 +189,8 @@ void Tokenizer::OptimizeTokenLength()
         if(replacementIt == m_tokenPairReplacements.end())
         {
             Token newToken = m_nextUnusedToken++;
-            if(left.IsSeparator())
-            {
-                newToken.SetSeparator();
-            }
-            m_tokenPairReplacements[tokenPair] = Token(newToken);
+            m_tokenPairReplacements[tokenPair] = newToken;
+            m_tokenReplacements.emplace(newToken, tokenPair);
         }
         else
         {
@@ -242,23 +245,32 @@ void Tokenizer::CalculateTokenRelationships()
     }
 }
 
-// Store tokenizer state to a database
-void Tokenizer::StoreTokenizerToDB(sqlite::DB & /*db*/) const
+std::string Tokenizer::GetTokenTextSequence(const Token & token) const
 {
-    // store settings
-    // store tokenizedInputSequence
-    // store nextUnusedToken
-    // store tokenPairCountAndPositions
-    // store tokenPairReplacements
-    // store tokenRelationships
-}
-    
-void Tokenizer::LoadDataFromDB(sqlite::DB & /*db*/)
-{
-    // load settings, check version
-    // load tokenizedInputSequence
-    // load nextUnusedToken
-    // load tokenPairCountAndPositions
-    // load tokenPairReplacements
-    // load tokenRelationships
+    std::string text;
+    std::vector<Token> pending{token};
+    while(!pending.empty())
+    {
+        const Token current = pending.back();
+        pending.pop_back();
+
+        if(current.GetToken() < 256)
+        {
+            if(current.IsSeparator() && !text.empty())
+            {
+                text.push_back(' ');
+            }
+            text.push_back(static_cast<char>(current.GetToken()));
+            continue;
+        }
+
+        const auto expansion = m_tokenReplacements.find(current);
+        if(expansion == m_tokenReplacements.end())
+        {
+            throw std::logic_error("Tokenizer cannot expand a token without a replacement pair");
+        }
+        pending.push_back(expansion->second.right);
+        pending.push_back(expansion->second.left);
+    }
+    return text;
 }

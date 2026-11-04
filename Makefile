@@ -63,38 +63,61 @@ NEED_FILE_GENERATION := $(filter-out message clean,$(MAKECMDGOALS))
 #
 # Issue a warning if people just execute this makefile without any idea of what havock it can wreak.
 #
+.PHONY: message
 message:
 	@echo "Build 3rd party libs by typeing 'make 3rdParty', then:"
-	@echo "Either use 'make release' or 'make debug', possibly augmented with 'run_UTs' or 'run_tests'"
-	@echo "(so 'make debug run_UTs' would run a debug build of the unit tests)"
-	@echo "Also usefull: 'make profile run_callgrind' to generate a callgrind.out file"
+	@echo "Either use 'make -j4 release' or 'make debug', then run the tests: 'make run_UTs' or 'make run_tests'"
+	@echo "(so 'make debug && make run_UTs' would run a debug build of the unit tests)"
+	@echo "Also usefull: 'make profile && make run_callgrind' to generate a callgrind.out file"
+	@echo "'make all' compiles using the previously chosen build type, or debug"
 	@echo "Any other argument: Here Be Dragons"
 
+.PHONY: release
 release:
 	@if [ -f build/.debug ] || [ -f build/.profile ]; then echo "Previous compilation was not RELEASE, cleaning up..."; make clean; fi
 	@mkdir -p temp build
 	@touch build/.release
 	@echo "Starting RELEASE build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" all
+	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" binaries
 
+.PHONY: debug
 debug:
 	@if [ -f build/.release ] || [ -f build/.profile ]; then echo "Previous compilation was not DEBUG, cleaning up..."; make clean; fi
 	@mkdir -p temp build
 	@touch build/.debug
 	@echo "Starting DEBUG build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" all
+	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" binaries
 
+.PHONY: profile
 profile:
 	@if [ -f build/.release ] || [ -f build/.debug ]; then echo "Previous compilation was not PROFILE, cleaning up..."; make clean; fi
 	@mkdir -p temp build
 	@touch build/.profile
 	@echo "Starting PROFILE build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g -O2" all
+	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g -O2" binaries
 
+#
+# all will compile debug mode, unless a build dir is already present
+#
+ifneq ($(wildcard build/.debug),)
+    DEFAULT_BUILD := debug
+else ifneq ($(wildcard build/.profile),)
+    DEFAULT_BUILD := profile
+else ifneq ($(wildcard build/.release),)
+    DEFAULT_BUILD := release
+else
+    DEFAULT_BUILD := debug
+endif
+
+.PHONY: all
+all: $(DEFAULT_BUILD)
+		
+.PHONY: clean
 clean:
 	@rm -rf bin build *.out
 	@find . -name "*~" -exec rm -f "{}" \;
 
+.PHONY: proper
 proper: clean
 	@rm -f temp
 	@make -C 3rdParty clean
@@ -263,7 +286,8 @@ endif
 -include $(EXE_LNK_FILES)
 -include $(LIB_LNK_FILES)
 
-all: tests executables
+.PHONY: binaries
+binaries: tests executables
 
 #
 # build & execute tests
