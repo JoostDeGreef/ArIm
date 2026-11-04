@@ -14,52 +14,41 @@ class DB::State
 {
 public:
     State()
-        : m_db(nullptr)
+        : m_db()
         , m_busyTimeoutMs(6000)
     {}
 
-    ~State()
-    {
-        if (m_db)
-        {
-            sqlite3_close_v2(m_db);
-            m_db = nullptr;
-        }
-    }
+    ~State() = default;
 
     void Check()
     {
-        if (nullptr == m_db)
+        if (!m_db)
         {
             ThrowError("DB not opened");
         }
     }
 
-    sqlite3_stmt* Compile(const std::string& sql)
+    StatementHandle Compile(const std::string& sql)
     {
         Check();
 
         const char* szTail = 0;
-        sqlite3_stmt* statement;
+        sqlite3_stmt* rawStatement = nullptr;
 
-        int ret = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &statement, &szTail);
+        int ret = sqlite3_prepare_v2(m_db.get(), sql.c_str(), -1, &rawStatement, &szTail);
+        StatementHandle statement = OwnStatement(rawStatement);
 
-        ThrowErrorIfNotOK(m_db, ret);
+        ThrowErrorIfNotOK(m_db.get(), ret);
 
         return statement;
     }
 
     void Close()
     {
-        if (m_db)
-        {
-            int ret = sqlite3_close_v2(m_db);
-            ThrowErrorIfNotOK(m_db, ret);
-            m_db = nullptr;
-        }
+        m_db.reset();
     }
 
-    sqlite3* m_db;
+    DatabaseHandle m_db;
     int m_busyTimeoutMs;
 };
 

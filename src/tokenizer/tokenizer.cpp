@@ -47,8 +47,8 @@ void Tokenizer::FeedInput(const std::string& input)
         }
         else
         {
-            separated = false;
             tokenizedInputSequence.emplace_back(c,separated);
+            separated = false;
         }
     }
 }

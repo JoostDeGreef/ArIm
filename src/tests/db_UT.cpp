@@ -147,3 +147,49 @@ TEST_F(SQLiteTest, OwnershipTest_MoveQuery)
     EXPECT_NO_THROW(assignmentSource.Finalize());
     EXPECT_EQ(43, destination.GetIntField(0));
 }
+
+TEST_F(SQLiteTest, OwnershipTest_QueryKeepsCompiledStatementAlive)
+{
+    SQLite::DB db;
+    db.Open(SQLite::DB::memoryDB, false);
+
+    SQLite::Query query;
+    {
+        auto statement = db.CompileStatement("SELECT 42 UNION ALL SELECT 43;");
+        query = statement.ExecQuery();
+    }
+
+    EXPECT_EQ(42, query.GetIntField(0));
+    query.NextRow();
+    EXPECT_EQ(43, query.GetIntField(0));
+}
+
+TEST_F(SQLiteTest, OwnershipTest_QueryKeepsDatabaseAlive)
+{
+    SQLite::Query query;
+    {
+        SQLite::DB db;
+        db.Open(SQLite::DB::memoryDB, false);
+        query = db.ExecQuery("SELECT 42;");
+    }
+
+    EXPECT_EQ(42, query.GetIntField(0));
+}
+
+TEST_F(SQLiteTest, OwnershipTest_FinalizedQueryDoesNotFinalizeCompiledStatement)
+{
+    SQLite::DB db;
+    db.Open(SQLite::DB::memoryDB, false);
+    auto statement = db.CompileStatement("SELECT ?;");
+
+    {
+        auto query = statement.ExecQuery();
+        EXPECT_EQ(0, query.GetIntField(0));
+        query.Finalize();
+    }
+
+    statement.Reset();
+    statement.Bind(1, 44);
+    auto query = statement.ExecQuery();
+    EXPECT_EQ(44, query.GetIntField(0));
+}

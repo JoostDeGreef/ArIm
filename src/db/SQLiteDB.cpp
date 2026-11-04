@@ -26,8 +26,11 @@ DB::~DB()
 
 void DB::Open(const std::string& fileName, bool readOnly)
 {
-    int ret = sqlite3_open_v2(fileName.c_str(), &m_state->m_db, readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, nullptr);
-    ThrowErrorIfNotOK(m_state->m_db, ret);
+    m_state->m_db.reset();
+    sqlite3* db = nullptr;
+    int ret = sqlite3_open_v2(fileName.c_str(), &db, readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, nullptr);
+    m_state->m_db = OwnDatabase(db);
+    ThrowErrorIfNotOK(m_state->m_db.get(), ret);
     SetBusyTimeout(m_state->m_busyTimeoutMs);
 }
 
@@ -47,35 +50,34 @@ int DB::ExecDML(const std::string& sql)
 
     char* szError = 0;
 
-    int ret = sqlite3_exec(m_state->m_db, sql.c_str(), 0, 0, &szError);
+    int ret = sqlite3_exec(m_state->m_db.get(), sql.c_str(), 0, 0, &szError);
 
     ThrowErrorIfNotOK(szError, ret);
 
-    return sqlite3_changes(m_state->m_db);
+    return sqlite3_changes(m_state->m_db.get());
 }
 
 Query DB::ExecQuery(const std::string& sql)
 {
     m_state->Check();
 
-    sqlite3_stmt* statement = m_state->Compile(sql);
+    StatementHandle statement = m_state->Compile(sql);
 
-    int ret = sqlite3_step(statement);
+    int ret = sqlite3_step(statement.get());
 
     if (ret == SQLITE_DONE)
     {
         // no rows
-        return std::make_shared<Query::State>(m_state->m_db, statement, true);
+        return std::make_shared<Query::State>(m_state->m_db, std::move(statement), true);
     }
     else if (ret == SQLITE_ROW)
     {
         // at least 1 row
-        return std::make_shared<Query::State>(m_state->m_db, statement, false);
+        return std::make_shared<Query::State>(m_state->m_db, std::move(statement), false);
     }
     else
     {
-        ret = sqlite3_finalize(statement);
-        ThrowError(m_state->m_db, ret);
+        ThrowError(m_state->m_db.get(), ret);
         return Query();
     }
 }
@@ -118,24 +120,27 @@ double DB::ExecSingleFloat(const std::string& sql)
 
 Statement DB::CompileStatement(const std::string& sql)
 {
-    sqlite3_stmt* statement = m_state->Compile(sql);
-    return std::make_shared<Statement::State>(m_state->m_db, statement, false);
+    StatementHandle statement = m_state->Compile(sql);
+    return std::make_shared<Statement::State>(m_state->m_db, std::move(statement), false);
 }
 
 int64_t DB::LastRowId() const
 {
-    return sqlite3_last_insert_rowid(m_state->m_db);
+    return sqlite3_last_insert_rowid(m_state->m_db.get());
 }
 
 void DB::Interrupt()
 {
-    sqlite3_interrupt(m_state->m_db);
+    sqlite3_interrupt(m_state->m_db.get());
 }
 
 void DB::SetBusyTimeout(int milliSecs)
 {
     m_state->m_busyTimeoutMs = milliSecs;
-    sqlite3_busy_timeout(m_state->m_db, milliSecs);
+    if (m_state->m_db)
+    {
+        sqlite3_busy_timeout(m_state->m_db.get(), milliSecs);
+    }
 }
 
 std::string DB::SQLiteVersion()

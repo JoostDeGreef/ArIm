@@ -1,10 +1,37 @@
 #pragma once
 
+#include <memory>
+
 #include "sqlite3.h"
 #include "SQLiteException.h"
 
 namespace SQLite
 {
+    using DatabaseHandle = std::shared_ptr<sqlite3>;
+    using StatementHandle = std::shared_ptr<sqlite3_stmt>;
+
+    inline DatabaseHandle OwnDatabase(sqlite3* db)
+    {
+        return DatabaseHandle(db, [](sqlite3* value)
+        {
+            if (value)
+            {
+                sqlite3_close_v2(value);
+            }
+        });
+    }
+
+    inline StatementHandle OwnStatement(sqlite3_stmt* statement)
+    {
+        return StatementHandle(statement, [](sqlite3_stmt* value)
+        {
+            if (value)
+            {
+                sqlite3_finalize(value);
+            }
+        });
+    }
+
     inline void ThrowError(const char* szError, int code = 42)
     {
         throw Exception(code, szError ? szError : "Unknown SQLite error");

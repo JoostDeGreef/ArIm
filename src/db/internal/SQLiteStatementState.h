@@ -13,33 +13,26 @@ using namespace SQLite;
 class Statement::State
 {
 public:
-    State(sqlite3* db, sqlite3_stmt* statement,bool eof,int columnCount = -1)
+    State(DatabaseHandle db, StatementHandle statement,bool eof,int columnCount = -1)
         : m_db(db)
         , m_statement(statement)
         , m_eof(eof)
         , m_columnCount(columnCount)
     {
-        if (-1 == m_columnCount && nullptr != m_statement)
+        if (-1 == m_columnCount && m_statement)
         {
-            m_columnCount = sqlite3_column_count(m_statement);
+            m_columnCount = sqlite3_column_count(m_statement.get());
         }
     }
-    ~State()
-    {
-        if (m_statement)
-        {
-            sqlite3_finalize(m_statement);
-            m_statement = nullptr;
-        }
-    }
+    ~State() = default;
 
     void Check()
     {
-        if (nullptr == m_db)
+        if (!m_db)
         {
             ThrowError("Database not open");
         }
-        if (nullptr == m_statement)
+        if (!m_statement)
         {
             ThrowError("Statement not active");
         }
@@ -49,23 +42,22 @@ public:
     {
         if (m_statement)
         {
-            int ret = sqlite3_finalize(m_statement);
-            m_statement = nullptr;
-            ThrowErrorIfNotOK(m_db, ret);
+            m_statement.reset();
         }
+        m_db.reset();
     }
 
     void Reset()
     {
         if (m_statement)
         {
-            int ret = sqlite3_reset(m_statement);
-            ThrowErrorIfNotOK(m_db, ret);
+            int ret = sqlite3_reset(m_statement.get());
+            ThrowErrorIfNotOK(m_db.get(), ret);
         }
     }
 
-    sqlite3* m_db;
-    sqlite3_stmt* m_statement;
+    DatabaseHandle m_db;
+    StatementHandle m_statement;
     bool m_eof;
     int m_columnCount;
 };

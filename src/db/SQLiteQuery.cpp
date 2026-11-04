@@ -66,7 +66,7 @@ const std::vector<std::string>& Query::GetFieldNames() const
         m_state->m_fieldNames.resize(m_state->m_columnCount);
         for (int field = 0; field < m_state->m_columnCount; field++)
         {
-            m_state->m_fieldNames[field] = sqlite3_column_name(m_state->m_statement, field);
+            m_state->m_fieldNames[field] = sqlite3_column_name(m_state->m_statement.get(), field);
             std::transform(m_state->m_fieldNames[field].begin(), m_state->m_fieldNames[field].end(), m_state->m_fieldNames[field].begin(), ::tolower);
         }
     }
@@ -77,7 +77,7 @@ void Query::NextRow()
 {
     m_state->Check();
 
-    int ret = sqlite3_step(m_state->m_statement);
+    int ret = sqlite3_step(m_state->m_statement.get());
 
     if (ret == SQLITE_DONE)
     {
@@ -91,7 +91,7 @@ void Query::NextRow()
     else
     {
         Finalize();
-        ThrowError(m_state->m_db, ret);
+        ThrowError(m_state->m_db.get(), ret);
     }
 }
 
@@ -134,7 +134,7 @@ std::string Query::FieldDeclType(int field) const
     m_state->Check();
     m_state->CheckField(field);
 
-    const char* res = sqlite3_column_decltype(m_state->m_statement, field);
+    const char* res = sqlite3_column_decltype(m_state->m_statement.get(), field);
     return nullptr == res ? "NULL" : res;
 }
 
@@ -143,7 +143,7 @@ DataType Query::FieldDataType(int field) const
     m_state->Check();
     m_state->CheckField(field);
 
-    switch (sqlite3_column_type(m_state->m_statement, field))
+    switch (sqlite3_column_type(m_state->m_statement.get(), field))
     {
     case SQLITE_INTEGER: return DataType::Integer;
     case SQLITE_FLOAT: return DataType::Float;
@@ -160,7 +160,7 @@ std::string Query::FieldValue(int field) const
 {
     m_state->Check();
     m_state->CheckField(field);
-    return (const char*)sqlite3_column_text(m_state->m_statement, field);
+    return (const char*)sqlite3_column_text(m_state->m_statement.get(), field);
 }
 
 std::string Query::FieldValue(const std::string& field) const
@@ -171,7 +171,7 @@ std::string Query::FieldValue(const std::string& field) const
 
 int Query::GetIntField(int field, int nullValue) const
 {
-    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_int(m_state->m_statement, field);    
+    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_int(m_state->m_statement.get(), field);
 }
 
 int Query::GetIntField(const std::string& field, int nullValue) const
@@ -182,7 +182,7 @@ int Query::GetIntField(const std::string& field, int nullValue) const
 
 int64_t Query::GetInt64Field(int field, long long nullValue) const
 {
-    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_int64(m_state->m_statement, field);
+    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_int64(m_state->m_statement.get(), field);
 }
 
 int64_t Query::GetInt64Field(const std::string& field, long long nullValue) const
@@ -193,7 +193,7 @@ int64_t Query::GetInt64Field(const std::string& field, long long nullValue) cons
 
 double Query::GetFloatField(int field, double nullValue) const
 {
-    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_double(m_state->m_statement, field);
+    return (FieldDataType(field) == DataType::Null) ? nullValue : sqlite3_column_double(m_state->m_statement.get(), field);
 }
 
 double Query::GetFloatField(const std::string& field, double nullValue) const
@@ -204,7 +204,7 @@ double Query::GetFloatField(const std::string& field, double nullValue) const
 
 std::string Query::GetStringField(int field, const std::string& nullValue) const
 {
-    return (FieldDataType(field) == DataType::Null) ? nullValue : (const char *)(sqlite3_column_text(m_state->m_statement, field));
+    return (FieldDataType(field) == DataType::Null) ? nullValue : (const char *)(sqlite3_column_text(m_state->m_statement.get(), field));
 }
 
 std::string Query::GetStringField(const std::string& field, const std::string& nullValue) const
@@ -218,10 +218,13 @@ std::vector<unsigned char> Query::GetBlobField(int field) const
     std::vector<unsigned char> res;
     if (FieldDataType(field) != DataType::Null)
     {
-        int length = sqlite3_column_bytes(m_state->m_statement, field);
-        auto blob = (const unsigned char*)sqlite3_column_blob(m_state->m_statement, field);
-        res.reserve(length);
-        res.insert(res.end(), &blob[0], &blob[length]);
+        int length = sqlite3_column_bytes(m_state->m_statement.get(), field);
+        if(length)
+        {
+            auto blob = (const unsigned char*)sqlite3_column_blob(m_state->m_statement.get(), field);
+            res.reserve(length);
+            res.insert(res.end(), &blob[0], &blob[length]);
+        }
     }
     return res;
 }
@@ -234,7 +237,7 @@ std::vector<unsigned char> Query::GetBlobField(const std::string& field) const
 
 bool Query::FieldIsNull(int field) const
 {
-    return (FieldDataType(field) != DataType::Null);
+    return (FieldDataType(field) == DataType::Null);
 }
 
 bool Query::FieldIsNull(const std::string& field) const
