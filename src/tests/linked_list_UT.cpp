@@ -1,6 +1,7 @@
 #include <utility>
 #include <chrono>
 #include <iostream>
+#include <string>
 
 #include "googletest_wrapper.h"
 #include "ConsoleOutput.h"
@@ -56,6 +57,28 @@ TEST_F(LinkedListTest, PushBackAndIteratorsTraverseInBothDirections)
         EXPECT_EQ(reverseExpected[index++], *it);
     }
     EXPECT_EQ(5, index);
+}
+
+TEST_F(LinkedListTest, EmplaceBackConstructsAndReturnsLastElement)
+{
+    struct Value
+    {
+        Value() : number(0) {}
+        Value(int number, const std::string& text) : number(number), text(text) {}
+        int number;
+        std::string text;
+    };
+
+    linked_list<Value, 2> values;
+    Value& first = values.emplace_back(7, std::string("first"));
+    values.emplace_back(8, "second");
+
+    EXPECT_EQ(7, first.number);
+    EXPECT_EQ("first", first.text);
+    ASSERT_EQ(2, std::distance(values.begin(), values.end()));
+    auto last = values.last();
+    EXPECT_EQ(8, last->number);
+    EXPECT_EQ("second", last->text);
 }
 
 TEST_F(LinkedListTest, ConstIteratorsTraverseElements)

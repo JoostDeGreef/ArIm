@@ -11,7 +11,10 @@
 
 #include "block_vector.h"
 
-template<typename T, size_t block_size = 256>
+// Note:
+//   This 'optimal block_size' was determined by running 
+//   "make release run_linked_list_benchmark"
+template<typename T, size_t block_size = 512>
 class linked_list
 {
     struct node
@@ -165,6 +168,10 @@ public:
 
     // insert a value as the last value
     void push_back(const T& value);
+
+    // construct a value as the last value
+    template<typename... Args>
+    T& emplace_back(Args&&... args);
 
     // erase one value at position and return the iterator to the next value
     iterator erase(iterator position);
@@ -406,22 +413,35 @@ typename linked_list<T, block_size>::reverse_iterator linked_list<T, block_size>
 template<typename T, size_t block_size>
 void linked_list<T, block_size>::push_back(const T& value)
 {
-    if(!m_last)
+    emplace_back(value);
+}
+
+template<typename T, size_t block_size>
+template<typename... Args>
+T& linked_list<T, block_size>::emplace_back(Args&&... args)
+{
+    node* n = allocate();
+    std::destroy_at(&n->m_data);
+    try
     {
-        node * n = allocate();
-        n->m_data = value;
-        n->m_prev = nullptr;
-        n->m_next = nullptr;
-        m_last = n;
-        m_first = n;
+        std::construct_at(&n->m_data, std::forward<Args>(args)...);
+    }
+    catch(...)
+    {
+        std::construct_at(&n->m_data);
+        throw;
+    }
+
+    n->m_prev = m_last;
+    n->m_next = nullptr;
+    if(m_last)
+    {
+        m_last->m_next = n;
     }
     else
     {
-        node * n = allocate();
-        n->m_data = value;
-        n->m_prev = m_last;
-        n->m_next = nullptr;
-        m_last->m_next = n;
-        m_last = n;
+        m_first = n;
     }
+    m_last = n;
+    return n->m_data;
 }

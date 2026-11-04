@@ -45,7 +45,7 @@ TEST_F(TokenizerTest, Constructor)
 {
     Tokenizer tokenizer;
     EXPECT_TRUE(tokenizer.tokenizedInputSequence.empty()) << "Expected empty tokenizedInputSequence on construction";
-    EXPECT_EQ(256,tokenizer.nextUnusedToken.token) << "Expected 256 reserved tokens for the ASCII characters";
+    EXPECT_EQ(256,tokenizer.nextUnusedToken.data) << "Expected 256 reserved tokens for the ASCII characters";
 }
 
 TEST_F(TokenizerTest, FeedInput)
@@ -53,7 +53,7 @@ TEST_F(TokenizerTest, FeedInput)
     Tokenizer tokenizer;
     tokenizer.FeedInput("this is a test");
     EXPECT_EQ(14-3, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 14 characters minus 3 spaces";
-    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.data) << "Expected 256 tokens. separation/start is only a state";
 }
 
 TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
@@ -61,10 +61,10 @@ TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
     EXPECT_EQ(5, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 5 characters";
-    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation/start is only a state";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.data) << "Expected 256 tokens. separation/start is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
     EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
-    EXPECT_EQ(1, tokenizer.tokenPairCountAndPositions.find(TokenPair('a' | Token::separated,'b'))->second.count) << "Expected 1 occurrence of the token pair ab";
+    EXPECT_EQ(1, tokenizer.tokenPairCountAndPositions.find(TokenPair('a' | Token::sepatorBit,'b'))->second.count) << "Expected 1 occurrence of the token pair ab";
     EXPECT_EQ(2, tokenizer.tokenPairCountAndPositions.find(TokenPair('b','a'))->second.count) << "Expected 2 occurrences of the token pair ba";
     EXPECT_EQ(1, tokenizer.tokenPairCountAndPositions.find(TokenPair('a','b'))->second.count) << "Expected 1 occurrence of the token pair ab";
 }
@@ -74,19 +74,19 @@ TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
     EXPECT_EQ(5, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 5 characters";
-    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. separation is only a state";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.data) << "Expected 256 tokens. separation is only a state";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.tokenizedInputSequence.begin());
     EXPECT_EQ(3, tokenizer.tokenPairCountAndPositions.size()) << "Expected 3 token pairs: *ab, ba and ab";
-    tokenizer.tokenPairReplacements[TokenPair('a' | Token::separated,'b')] = Token('X');
+    tokenizer.tokenPairReplacements[TokenPair('a' | Token::sepatorBit,'b')] = Token('X');
     tokenizer.tokenPairReplacements[TokenPair('a','b')] = Token('Y');
     tokenizer.tokenPairReplacements[TokenPair('b','a')] = Token('Z');
     tokenizer.ApplyExistingTokenPairReplacements();
     ASSERT_EQ(3, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end())) << "Expected 3 tokens, XYa";
-    EXPECT_EQ(256, tokenizer.nextUnusedToken.token) << "Expected 256 tokens. XY are not new";
+    EXPECT_EQ(256, tokenizer.nextUnusedToken.data) << "Expected 256 tokens. XY are not new";
     auto p = tokenizer.tokenizedInputSequence.begin();
-    EXPECT_EQ('X', (p++)->token) << "Expected X";
-    EXPECT_EQ('Y', (p++)->token) << "Expected Y";
-    EXPECT_EQ('a', (p++)->token) << "Expected a";
+    EXPECT_EQ('X', (p++)->getData()) << "Expected X";
+    EXPECT_EQ('Y', (p++)->getData()) << "Expected Y";
+    EXPECT_EQ('a', (p++)->getData()) << "Expected a";
 }
 
 TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
@@ -99,11 +99,11 @@ TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
 
     ASSERT_EQ(4, std::distance(tokenizer.tokenizedInputSequence.begin(), tokenizer.tokenizedInputSequence.end()));
     auto position = tokenizer.tokenizedInputSequence.begin();
-    EXPECT_EQ('x' | Token::separated, (position++)->token);
-    const auto replacement = (position++)->token;
+    EXPECT_EQ('x' | Token::sepatorBit, (position++)->data);
+    const auto replacement = (position++)->data;
     EXPECT_EQ(256, replacement);
-    EXPECT_EQ(replacement, (position++)->token);
-    EXPECT_EQ('x', position->token);
+    EXPECT_EQ(replacement, (position++)->data);
+    EXPECT_EQ('x', position->data);
     EXPECT_EQ(1, tokenizer.tokenPairReplacements.size());
 }
 

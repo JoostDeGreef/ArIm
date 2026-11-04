@@ -25,6 +25,9 @@ Tokenizer::Tokenizer(SQLite::DB & db)
 
 void Tokenizer::Process(const std::string& input)
 {
+    // WARNING:
+    //   this is just a placeholder of what should be executed,
+    //   not in any way proper or ready for review yet.
     auto firstTokenToUpdate = tokenizedInputSequence.last();
     FeedInput(input);
     UpdateTokenPairCountAndPositions(firstTokenToUpdate);
@@ -35,18 +38,17 @@ void Tokenizer::Process(const std::string& input)
 
 void Tokenizer::FeedInput(const std::string& input)
 {
-    Token::Data separated = Token::separated;
-    for(Token::Data t: input)
+    bool separated = true;
+    for(uint8_t c: input)
     {
-        if(isspace(t))
+        if(isspace(c))
         {
-            separated = Token::separated;
+            separated = true;
         }
         else
         {
-            t |= separated;
-            separated = 0;
-            tokenizedInputSequence.push_back(t);
+            separated = false;
+            tokenizedInputSequence.emplace_back(c,separated);
         }
     }
 }
@@ -60,8 +62,8 @@ void Tokenizer::UpdateTokenPairCountAndPositions(linked_list<Token>::iterator po
     auto prevPosition = position;
     for(++position; position != tokenizedInputSequence.end(); ++position)
     {
-        const Token::Data & left = prevPosition->token;
-        const Token::Data & right = position->token;
+        const Token & left = *prevPosition;
+        const Token & right = *position;
         TokenPair tokenPair(left, right);
         auto & countAndPosition = tokenPairCountAndPositions[tokenPair];
         countAndPosition.count++;
@@ -80,8 +82,8 @@ void Tokenizer::ApplyExistingTokenPairReplacements()
     auto prevPosition = position;
     for(++position; position != tokenizedInputSequence.end();)
     {
-        const Token::Data & left = prevPosition->token;
-        const Token::Data & right = position->token;
+        const Token & left = *prevPosition;
+        const Token & right = *position;
         TokenPair tokenPair(left, right);
         auto replacementIt = tokenPairReplacements.find(tokenPair);
         if(replacementIt != tokenPairReplacements.end())

@@ -11,7 +11,8 @@ public:
     Token right;    // right token of the pair
 
     TokenPair()
-        : TokenPair(Token::root, Token::root)
+        : left(Token::root)
+        , right(Token::root)
     {}
     TokenPair(const Token left, const Token right)
         : left(left)
@@ -40,7 +41,7 @@ public:
         size_t operator()(const TokenPair& tokenPair) const
         {
             constexpr int shift = 8*(sizeof(size_t) - sizeof(Token::Data));
-            return std::hash<size_t>()((size_t)tokenPair.left.token ^ ((size_t)tokenPair.right.token << shift));
+            return std::hash<size_t>()((size_t)tokenPair.left.getData() ^ ((size_t)tokenPair.right.getData() << shift));
         }
     };
 };
