@@ -17,7 +17,7 @@
             "name": "Debug tokenizer_ut",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/tokenizer_UT",
+            "program": "${workspaceFolder}/bin/Tokenizer_UT",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
@@ -30,7 +30,7 @@
             "name": "Debug tokenizer_ut (LLDB)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/tokenizer_UT",
+            "program": "${workspaceFolder}/bin/Tokenizer_UT",
             "args": ["--gtest_break_on_failure", "--gtest_catch_exceptions=0"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"
@@ -39,7 +39,7 @@
             "name": "Debug block_vector_ut (LLDB)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/block_vector_UT",
+            "program": "${workspaceFolder}/bin/BlockVector_UT",
             "args": ["--gtest_break_on_failure", "--gtest_catch_exceptions=0"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"
@@ -48,7 +48,7 @@
             "name": "Debug db_ut (LLDB)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/db_UT",
+            "program": "${workspaceFolder}/bin/SQLiteDB_UT",
             "args": [],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"
@@ -57,7 +57,7 @@
             "name": "Debug tokenizer (LLDB)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/tokenizer",
+            "program": "${workspaceFolder}/bin/Tokenizer",
             "args": ["-S","-o","${workspaceFolder}/temp/alice_in_wonderland.sq3","${workspaceFolder}/data/alice_in_wonderland.txt"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build debug mode (makefile)"

@@ -49,7 +49,6 @@ CPPFLAGS=-W -Wall -std=c++20
 DEFINES=
 INCLUDE=3rdParty/include
 PROJECT_INCLUDE=$(patsubst src/%,-I src/% ,$(filter-out src/tests/,$(wildcard src/*/)))
-#GTEST_LIBS=3rdParty/lib/libgtest_main.a 3rdParty/lib/libgtest.a
 GTEST_LIBS=3rdParty/lib/libgtest.a
 SQLITE=3rdParty/lib/sqlite3.o
 
@@ -288,21 +287,21 @@ executables: ${EXE_FILES}
 .PHONY: run_tests
 run_tests: ${EXE_FILES}
 	@mkdir -p temp
-	bin/tokenizer -S -o temp/all.sq3 data/*.txt
+	bin/Tokenizer -S -o temp/all.sq3 data/*.txt
 
 .PHONY: run_callgrind
 run_callgrind: ${EXE_FILES}
 	@mkdir -p temp
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/tokenizer -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/Tokenizer -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_benchmark
 run_benchmark: ${EXE_FILES}
 	@mkdir -p temp
-	bin/tokenizer -S -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+	bin/Tokenizer -S -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_linked_list_benchmark
 run_linked_list_benchmark: ${EXE_FILES}
 	@mkdir -p temp
-	bin/linked_list_UT --gtest_also_run_disabled_tests --gtest_filter='*DISABLED_PushBackAndReplaceTwo*'
+	bin/LinkedList_UT --gtest_also_run_disabled_tests --gtest_filter='*DISABLED_PushBackAndReplaceTwo*'
 
-	
+
