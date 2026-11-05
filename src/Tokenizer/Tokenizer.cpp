@@ -2,6 +2,7 @@
 #include <cassert>
 #include <deque>
 #include <map>
+#include <queue>
 #include <unordered_set>
 #include <set>
 #include <stdexcept>
@@ -129,6 +130,36 @@ void Tokenizer::OptimizeTokenLength()
     {
         return;
     }
+    struct Candidate
+    {
+        size_t count;
+        uint64_t version;
+        TokenPair pair;
+    };
+    struct CandidateLess
+    {
+        bool operator()(const Candidate& a, const Candidate& b) const
+        {
+            return a.count < b.count;
+        }
+    };
+    std::priority_queue<Candidate, std::vector<Candidate>, CandidateLess> candidates;
+    std::unordered_map<TokenPair, uint64_t, TokenPair::HashFunction> versions;
+    auto QueueCandidate = [&](const TokenPair& pair, const CountAndPosition& data)
+    {
+        const auto version = ++versions[pair];
+        if(!data.positions.empty())
+        {
+            candidates.push({data.count, version, pair});
+        }
+    };
+    for(const auto& [pair, data] : m_tokenPairCountAndPositions)
+    {
+        if(!data.positions.empty())
+        {
+            QueueCandidate(pair, data);
+        }
+    }
     auto RemoveTokenPairSequencePosition = [&](LinkedList<Token>::Iterator position)
     {
         if(position == m_tokenizedInputSequence.end())
@@ -143,10 +174,12 @@ void Tokenizer::OptimizeTokenLength()
         }
         auto & left = *position;
         auto & right = *nextPosition;
-        auto & countAndPosition = m_tokenPairCountAndPositions[TokenPair(left, right)];
+        const TokenPair pair(left, right);
+        auto & countAndPosition = m_tokenPairCountAndPositions[pair];
         --countAndPosition.count;
         auto & positions = countAndPosition.positions;
         positions.erase(position);
+        QueueCandidate(pair, countAndPosition);
     };
     auto AddTokenPairSequencePosition = [&](LinkedList<Token>::Iterator position)
     {
@@ -162,28 +195,36 @@ void Tokenizer::OptimizeTokenLength()
         }
         auto & left = *position;
         auto & right = *nextPosition;
-        auto & countAndPosition = m_tokenPairCountAndPositions[TokenPair(left, right)];
+        const TokenPair pair(left, right);
+        auto & countAndPosition = m_tokenPairCountAndPositions[pair];
         ++countAndPosition.count;
         auto & positions = countAndPosition.positions;
         positions.emplace(position);
+        QueueCandidate(pair, countAndPosition);
     };
     // todo: think of what this should be
-    while(m_tokenPairReplacements.size() + 256 < Configuration::TokenDictionary)
+    while(m_tokenPairReplacements.size() + 512 < Configuration::TokenDictionary)
     {
-        auto iterMax = m_tokenPairCountAndPositions.end();
-        for(auto iter = m_tokenPairCountAndPositions.begin(); iter != m_tokenPairCountAndPositions.end(); ++iter)
+        while(!candidates.empty())
         {
-            if(!iter->second.positions.empty() &&
-               (iterMax == m_tokenPairCountAndPositions.end() || iter->second.count > iterMax->second.count))
+            const auto& candidate = candidates.top();
+            const auto current = m_tokenPairCountAndPositions.find(candidate.pair);
+            const auto version = versions.find(candidate.pair);
+            if(current == m_tokenPairCountAndPositions.end() ||
+               current->second.positions.empty() ||
+               version == versions.end() || version->second != candidate.version)
             {
-                iterMax = iter;
+                candidates.pop();
+                continue;
             }
+            break;
         }
-        if(iterMax == m_tokenPairCountAndPositions.end())
+        if(candidates.empty())
         {
             break;
         }
-        const auto tokenPair = iterMax->first;
+        const auto tokenPair = candidates.top().pair;
+        candidates.pop();
         const auto & left = tokenPair.left;
         const auto & right = tokenPair.right;
         auto replacementIt = m_tokenPairReplacements.find(tokenPair);

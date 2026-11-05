@@ -49,7 +49,7 @@ public:
 
     Token & operator ++ ()
     {
-        assert(m_data < ~Data(0));
+        assert(m_data < Root);
         ++m_data;
         return *this;
     }

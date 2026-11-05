@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <unordered_set>
+#include <set>
 
 #include "Token.h"
 #include "LinkedList.h"
