@@ -40,7 +40,7 @@ TEST_F(TokenizerTest, Constructor)
 {
     Tokenizer tokenizer;
     EXPECT_TRUE(tokenizer.m_tokenizedInputSequence.Empty()) << "Expected empty tokenizedInputSequence on construction";
-    EXPECT_EQ(256,tokenizer.m_nextUnusedToken.m_data) << "Expected 256 reserved tokens for the ASCII characters";
+    EXPECT_EQ(512,tokenizer.m_nextUnusedToken.m_data) << "Expected 512 reserved tokens for the ASCII characters + separation";
 }
 
 TEST_F(TokenizerTest, FeedInput)
@@ -48,11 +48,11 @@ TEST_F(TokenizerTest, FeedInput)
     Tokenizer tokenizer;
     tokenizer.FeedInput("this is a test");
     EXPECT_EQ(14-3, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 14 characters minus 3 spaces";
-    EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation/start is only a state";
+    EXPECT_EQ(512, tokenizer.m_nextUnusedToken.m_data) << "Expected 512 tokens.";
     auto position = tokenizer.m_tokenizedInputSequence.begin();
-    EXPECT_EQ('t', (position++)->GetData());
+    EXPECT_EQ('t', (position++)->GetToken());
     std::advance(position, 3);
-    EXPECT_EQ(Token('i', true), *position);
+    EXPECT_EQ(Token('i'+256), *position);
 }
 
 TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
@@ -60,7 +60,7 @@ TEST_F(TokenizerTest, UpdateTokenPairCountAndPositions)
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
     EXPECT_EQ(5, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 5 characters";
-    EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation/start is only a state";
+    EXPECT_EQ(512, tokenizer.m_nextUnusedToken.m_data) << "Expected 512 tokens.";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.m_tokenizedInputSequence.begin());
     EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected the two pairs ab and ba";
     EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.find(TokenPair('b','a'))->second.count) << "Expected 2 occurrences of the token pair ba";
@@ -72,18 +72,18 @@ TEST_F(TokenizerTest, ApplyExistingTokenPairReplacements)
     Tokenizer tokenizer;
     tokenizer.FeedInput("ababa");
     EXPECT_EQ(5, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 5 characters";
-    EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. separation is only a state";
+    EXPECT_EQ(512, tokenizer.m_nextUnusedToken.m_data) << "Expected 512 tokens.";
     tokenizer.UpdateTokenPairCountAndPositions(tokenizer.m_tokenizedInputSequence.begin());
     EXPECT_EQ(2, tokenizer.m_tokenPairCountAndPositions.size()) << "Expected the two pairs ab and ba";
     tokenizer.m_tokenPairReplacements[TokenPair('a','b')] = Token('Y');
     tokenizer.m_tokenPairReplacements[TokenPair('b','a')] = Token('Z');
     tokenizer.ApplyExistingTokenPairReplacements();
     ASSERT_EQ(3, std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end())) << "Expected 3 tokens, YYa";
-    EXPECT_EQ(256, tokenizer.m_nextUnusedToken.m_data) << "Expected 256 tokens. XY are not new";
+    EXPECT_EQ(512, tokenizer.m_nextUnusedToken.m_data) << "Expected 512 tokens. XY are not new";
     auto p = tokenizer.m_tokenizedInputSequence.begin();
-    EXPECT_EQ('Y', (p++)->GetData()) << "Expected Y";
-    EXPECT_EQ('Y', (p++)->GetData()) << "Expected Y";
-    EXPECT_EQ('a', (p++)->GetData()) << "Expected a";
+    EXPECT_EQ('Y', (p++)->GetToken()) << "Expected Y";
+    EXPECT_EQ('Y', (p++)->GetToken()) << "Expected Y";
+    EXPECT_EQ('a', (p++)->GetToken()) << "Expected a";
 }
 
 TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
@@ -96,7 +96,7 @@ TEST_F(TokenizerTest, OptimizeTokenLengthMergesMostFrequentPair)
 
     const TokenPair mostFrequentPair(Token('a'), Token('b'));
     ASSERT_NE(tokenizer.m_tokenPairReplacements.end(), tokenizer.m_tokenPairReplacements.find(mostFrequentPair));
-    EXPECT_EQ(256, tokenizer.m_tokenPairReplacements.at(mostFrequentPair).GetToken());
+    EXPECT_EQ(512, tokenizer.m_tokenPairReplacements.at(mostFrequentPair).GetToken());
     EXPECT_LT(std::distance(tokenizer.m_tokenizedInputSequence.begin(), tokenizer.m_tokenizedInputSequence.end()), 6);
 }
 
@@ -195,7 +195,7 @@ TEST_F(TokenizerTest, StoreAndLoadReadsBlobChunksAcrossRecordBoundaries)
         original.m_tokenPairReplacements.emplace(tokenPair, replacement);
         original.m_tokenReplacements.emplace(replacement, tokenPair);
     }
-    original.m_nextUnusedToken.SetData(712);
+    original.m_nextUnusedToken.SetToken(712);
 
     SQLite::DB db;
     db.Open(SQLite::DB::MemoryDB, false);

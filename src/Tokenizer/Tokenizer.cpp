@@ -12,7 +12,7 @@ using namespace std;
 
 Tokenizer::Tokenizer()
     : m_tokenizedInputSequence()
-    , m_nextUnusedToken(256)
+    , m_nextUnusedToken(512)
     , m_tokenPairCountAndPositions()
     , m_tokenPairReplacements()
     , m_tokenReplacements()
@@ -49,7 +49,7 @@ void Tokenizer::FeedInput(const std::string& input)
         }
         else
         {
-            m_tokenizedInputSequence.EmplaceBack(c,separated);
+            m_tokenizedInputSequence.EmplaceBack(c + (separated?256:0));
             separated = false;
         }
     }
@@ -167,6 +167,7 @@ void Tokenizer::OptimizeTokenLength()
         auto & positions = countAndPosition.positions;
         positions.emplace(position);
     };
+    // todo: think of what this should be
     while(m_tokenPairReplacements.size() + 256 < Configuration::TokenDictionary)
     {
         auto iterMax = m_tokenPairCountAndPositions.end();
@@ -254,13 +255,13 @@ std::string Tokenizer::GetTokenTextSequence(const Token & token) const
         const Token current = pending.back();
         pending.pop_back();
 
-        if(current.GetToken() < 256)
+        if(current.IsCharacter())
         {
             if(current.IsSeparator() && !text.empty())
             {
                 text.push_back(' ');
             }
-            text.push_back(static_cast<char>(current.GetToken()));
+            text.push_back(current.GetCharacter());
             continue;
         }
 

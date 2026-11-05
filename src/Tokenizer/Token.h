@@ -10,9 +10,7 @@ class Token
 public:
     typedef uint16_t Data;
 
-    static constexpr Data Root = (Data)-1;                      // initial input sequence token
-    static constexpr Data SeparatorBit = 1<<(sizeof(Data)*8-1); // preceded by separating space
-    static constexpr Data NumberMask = Root >> 1;               // mask for the token number
+    static constexpr Data Root = (Data)-1;  // initial input sequence token
 
 private:
     Data m_data;
@@ -22,9 +20,9 @@ public:
         : m_data(Root)
     {}
 
-    Token(const Data token, const bool separator = false)
+    Token(const Data token)
     {
-        SetToken(token, separator);
+        SetToken(token);
     }
 
     Token(const Token &) = default;
@@ -51,7 +49,7 @@ public:
 
     Token & operator ++ ()
     {
-        assert(m_data < NumberMask);
+        assert(m_data < ~Data(0));
         ++m_data;
         return *this;
     }
@@ -76,31 +74,23 @@ public:
 
     bool IsSeparator() const
     {
-        return (m_data & SeparatorBit) != 0;
+        return m_data >=256 && m_data < 512;
     }
-    void SetSeparator()
+    bool IsCharacter() const
     {
-        m_data |= SeparatorBit;
+        return m_data < 512;
+    }
+    char GetCharacter() const
+    {
+        return (char)(m_data & 255);
     }
     Data GetToken() const
     {
-        return m_data & NumberMask;
+        return m_data;
     }
     void SetToken(Data token)
     {
         m_data = token;
-    }
-    void SetToken(Data token, bool separator)
-    {
-        m_data = token | (separator ? SeparatorBit : 0);
-    }
-    Data GetData() const
-    {
-        return m_data;
-    }
-    void SetData(Data value)
-    {
-        m_data = value;
     }
 
     struct HashFunction

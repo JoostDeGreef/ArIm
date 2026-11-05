@@ -2,6 +2,7 @@
 build/
 temp/
 *~
+callgrind.out
 
 # output dirs
 bin/

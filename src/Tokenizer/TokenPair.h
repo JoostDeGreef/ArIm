@@ -41,7 +41,7 @@ public:
         size_t operator()(const TokenPair& tokenPair) const
         {
             constexpr int Shift = 8*(sizeof(size_t) - sizeof(Token::Data));
-            return std::hash<size_t>()((size_t)tokenPair.left.GetData() ^ ((size_t)tokenPair.right.GetData() << Shift));
+            return std::hash<size_t>()((size_t)tokenPair.left.GetToken() ^ ((size_t)tokenPair.right.GetToken() << Shift));
         }
     };
 };

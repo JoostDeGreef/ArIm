@@ -118,7 +118,7 @@ void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
     addSetting("Version", Configuration::Version);
     addSetting("RelationDepth", Configuration::RelationDepth);
     addSetting("TokenDictionary", Configuration::TokenDictionary);
-    addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetData())); 
+    addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetToken())); 
 
     auto StorePOD = []<typename T>(RingBuffer<unsigned char> & data, const T & pod)
     {
@@ -141,8 +141,7 @@ void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
         {
             return false;
         }
-        const Token::Data tokenData = pos->GetData();
-        StorePOD(data, tokenData);
+        StorePOD(data, *pos);
         ++pos;
         return true;
     });
@@ -157,12 +156,9 @@ void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
         {
             return false;
         }
-        const Token::Data left = pos->first.left.GetData();
-        const Token::Data right = pos->first.right.GetData();
-        const Token::Data replacement = pos->second.GetData();
-        StorePOD(data, left);
-        StorePOD(data, right);
-        StorePOD(data, replacement);
+        StorePOD(data, pos->first.left);
+        StorePOD(data, pos->first.right);
+        StorePOD(data, pos->second);
         ++pos;
         return true;
     });
@@ -192,13 +188,13 @@ void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
             }
             if(depthIter == tokenIter->second.begin())
             {
-                StorePOD(data, tokenIter->first.GetData());
+                StorePOD(data, tokenIter->first);
             }
             const auto &relations = *depthIter;
             StorePOD(data, relations.size());
             for(const auto & relation : relations)
             {
-                StorePOD(data, relation.first.GetData());
+                StorePOD(data, relation.first);
                 StorePOD(data, relation.second);
             }
             ++depthIter;
@@ -228,7 +224,7 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
     RequireCompatibleSetting("RelationDepth", Configuration::RelationDepth);
     RequireCompatibleSetting("TokenDictionary", Configuration::TokenDictionary);
     const auto nextToken = ReadSetting("NextToken");
-    if(nextToken < 0 || nextToken > Token::NumberMask)
+    if(nextToken < 0 || nextToken > Token::Root)
     {
         throw std::runtime_error("Tokenizer database contains an invalid next token value");
     }
@@ -238,7 +234,7 @@ void Tokenizer::LoadDataFromDB(SQLite::DB & db)
     m_tokenPairReplacements.clear();
     m_tokenReplacements.clear();
     m_tokenRelationships.clear();
-    m_nextUnusedToken.SetData(static_cast<Token::Data>(nextToken));
+    m_nextUnusedToken.SetToken(static_cast<Token::Data>(nextToken));
 
     SequenceReader sequenceReader(db, "TokenizedInputSequence");
     Token::Data sequenceToken;
