@@ -33,10 +33,10 @@
 # All executable/test targets get a .lnk file with their build rules
 #
 # to build:
-#   make debug/release
+#   make target=debug/release/profile all
 #
 # to run the unit tests:
-#   make debug/release run
+#   make target=debug/release/profile run_UTs
 #
 
 # tools
@@ -52,11 +52,27 @@ PROJECT_INCLUDE=$(patsubst src/%,-I src/% ,$(filter-out src/tests/,$(wildcard sr
 GTEST_LIBS=3rdParty/lib/libgtest.a
 SQLITE=3rdParty/lib/sqlite3.o
 
+# Select the optimization level with `make target=release all`.
+target ?= $(shell if [ -f build/.target ]; then cat build/.target; else echo debug; fi)
+ifeq ($(filter $(target),debug release profile),)
+$(error Unknown target '$(target)'; choose debug, release, or profile)
+endif
+ifeq ($(target),release)
+CPPFLAGS += -O3
+else ifeq ($(target),profile)
+CPPFLAGS += -g -O2
+else
+CPPFLAGS += -g3 -O0
+endif
+
 # Add .d / .lnk to Make's recognized suffixes.
 SUFFIXES += .d .lnk
 
 # make $$ work
 .SECONDEXPANSION:
+
+# Keep recursive make calls quiet about directory changes.
+MAKEFLAGS += --no-print-directory
 
 NEED_FILE_GENERATION := $(filter-out message clean,$(MAKECMDGOALS))
 
@@ -65,62 +81,66 @@ NEED_FILE_GENERATION := $(filter-out message clean,$(MAKECMDGOALS))
 #
 .PHONY: message
 message:
-	@echo "Build 3rd party libs by typeing 'make 3rdParty', then:"
-	@echo "Either use 'make -j4 release' or 'make debug', then run the tests: 'make run_UTs' or 'make run_tests'"
-	@echo "(so 'make debug && make run_UTs' would run a debug build of the unit tests)"
-	@echo "Also usefull: 'make profile && make run_callgrind' to generate a callgrind.out file"
-	@echo "'make all' compiles using the previously chosen build type, or debug"
+	@echo "Unless you know what you are doing you probably want to do this:"
+	@echo ""
+	@echo "compile:        make target=<debug|profile|release> 3rdParty all"
+	@echo "run unit tests: make run_UTs"
+	@echo ""
+	@echo "'make all' uses the previously selected target, or debug if none was selected"
 	@echo "Any other argument: Here Be Dragons"
 
-.PHONY: release
-release:
-	@if [ -f build/.debug ] || [ -f build/.profile ]; then echo "Previous compilation was not RELEASE, cleaning up..."; make clean; fi
-	@mkdir -p temp build
-	@touch build/.release
-	@echo "Starting RELEASE build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -O3" binaries
+.PHONY: all
 
-.PHONY: debug
-debug:
-	@if [ -f build/.release ] || [ -f build/.profile ]; then echo "Previous compilation was not DEBUG, cleaning up..."; make clean; fi
-	@mkdir -p temp build
-	@touch build/.debug
-	@echo "Starting DEBUG build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g3 -O0" binaries
-
-.PHONY: profile
-profile:
-	@if [ -f build/.release ] || [ -f build/.debug ]; then echo "Previous compilation was not PROFILE, cleaning up..."; make clean; fi
-	@mkdir -p temp build
-	@touch build/.profile
-	@echo "Starting PROFILE build..."
-	@$(MAKE) CPPFLAGS="$(CPPFLAGS) -g -O2" binaries
-
-#
-# all will compile debug mode, unless a build dir is already present
-#
-ifneq ($(wildcard build/.debug),)
-    DEFAULT_BUILD := debug
-else ifneq ($(wildcard build/.profile),)
-    DEFAULT_BUILD := profile
-else ifneq ($(wildcard build/.release),)
-    DEFAULT_BUILD := release
-else
-    DEFAULT_BUILD := debug
+# When both are requested, make all wait for clean before starting its build.
+ifneq ($(filter clean,$(MAKECMDGOALS)),)
+ifneq ($(filter all,$(MAKECMDGOALS)),)
+all: clean
+all: 3rdParty
+3rdParty: clean
+endif
 endif
 
-.PHONY: all
-all: $(DEFAULT_BUILD)
+ifneq ($(filter proper,$(MAKECMDGOALS)),)
+ifneq ($(filter all,$(MAKECMDGOALS)),)
+all: proper
+all: 3rdParty
+3rdParty: proper
+endif
+endif
+
+ifneq ($(filter 3rdParty,$(MAKECMDGOALS)),)
+ifneq ($(filter all,$(MAKECMDGOALS)),)
+all: 3rdParty
+endif
+endif
+
+ifeq ($(wildcard build/.3rdParty),)
+all: 3rdParty
+endif
+
+# Keep the shared build directory safe when optimization flags change. The
+# recursive build starts only after stale objects and generated link rules are removed.
+all:
+	@mkdir -p build temp
+	@previous=$$(if [ -f build/.target ]; then cat build/.target; else echo $(target); fi); \
+	if [ "$$previous" != "$(target)" ]; then \
+		echo "Switching build target to $(target), cleaning previous build..."; \
+		$(MAKE) clean; \
+	fi
+	@mkdir -p build temp
+	@printf '%s\n' '$(target)' > build/.target
+	@$(MAKE) target=$(target) binaries
 		
 .PHONY: clean
 clean:
+	@echo "Cleaning ..."
 	@rm -rf bin build *.out
 	@find . -name "*~" -exec rm -f "{}" \;
 
 .PHONY: proper
 proper: clean
 	@rm -f temp
-	@make -C 3rdParty clean
+	@$(MAKE) -C 3rdParty clean
 
 #
 # call the makefile for the 3dParty libraries
@@ -128,8 +148,10 @@ proper: clean
 
 .PHONY: 3rdParty
 3rdParty:
+	@mkdir -p build temp
 	@echo "Building 3rdParty libraries..."
-	@make -C 3rdParty all
+	@$(MAKE) -C 3rdParty all
+	@touch build/.3rdParty
 
 #
 # turn all CPP files into objects / executables and create a dependency file for all
@@ -170,7 +192,9 @@ build/%.o: src/%.cpp build/%.d Makefile
 	@echo "Compiling $< to $@"
 	@${CPP} ${CPPFLAGS} ${DEFINES} -isystem ${INCLUDE} ${PROJECT_INCLUDE} -fPIC -o $@ -c $<
 
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
 -include $(DEP_FILES)
+endif
 
 #
 # functions for .lnk file generation
@@ -282,9 +306,11 @@ $(foreach f,$(TST_LNK_FILES) $(EXE_LNK_FILES),\
       $(patsubst build/tests/%.lnk,src/tests/%.cpp,$(patsubst build/%/main.lnk,src/%/main.cpp,$(f)))))))
 endif
 
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
 -include $(TST_LNK_FILES)
 -include $(EXE_LNK_FILES)
 -include $(LIB_LNK_FILES)
+endif
 
 .PHONY: binaries
 binaries: tests executables
@@ -296,8 +322,9 @@ binaries: tests executables
 tests: ${TST_FILES}
 
 .PHONY: run_UTs
-run_UTs: ${TST_FILES}
-	@for test in $^; do \
+run_UTs:
+	@$(MAKE) target=$(target) all
+	@for test in ${TST_FILES}; do \
 		echo "=== $$test ==="; \
 		$$test --gtest_catch_exceptions=0 || exit 1; \
 	done
@@ -309,22 +336,26 @@ run_UTs: ${TST_FILES}
 executables: ${EXE_FILES}
 
 .PHONY: run_tests
-run_tests: ${EXE_FILES}
+run_tests:
+	@$(MAKE) target=$(target) all
 	@mkdir -p temp
 	bin/Tokenizer -s -o temp/all.sq3 data/*.txt
 
 .PHONY: run_callgrind
-run_callgrind: ${EXE_FILES}
+run_callgrind:
+	@$(MAKE) target=$(target) all
 	@mkdir -p temp
 	valgrind --tool=callgrind --callgrind-out-file=callgrind.out bin/Tokenizer -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_benchmark
-run_benchmark: ${EXE_FILES}
+run_benchmark:
+	@$(MAKE) target=$(target) all
 	@mkdir -p temp
 	bin/Tokenizer -s -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_linked_list_benchmark
-run_linked_list_benchmark: ${EXE_FILES}
+run_linked_list_benchmark:
+	@$(MAKE) target=$(target) all
 	@mkdir -p temp
 	bin/LinkedList_UT --gtest_also_run_disabled_tests --gtest_filter='*DISABLED_PushBackAndReplaceTwo*'
 

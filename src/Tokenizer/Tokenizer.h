@@ -70,6 +70,9 @@ private:
     // stored to DB
     std::unordered_map<Token,std::array<std::unordered_map<Token,size_t,Token::HashFunction>,Configuration::RelationDepth>,Token::HashFunction> m_tokenRelationships;
 
+    // a map with runtimes per function, usefull for reporting purposes <call count,total duration>
+    mutable std::unordered_map<std::string, std::pair<uint64_t,uint64_t>> m_functionRuntimes;
+
     // Add text to the tokenizer. can be called repeatedly
     // This adds tokens to the back of tokenizedInputSequence and updates the tokenCounts map
     void FeedInput(const std::string& input); 

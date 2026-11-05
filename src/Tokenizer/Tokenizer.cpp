@@ -6,10 +6,14 @@
 #include <unordered_set>
 #include <set>
 #include <stdexcept>
+#include <iostream>
 
+#include "Timer.h"
 #include "Tokenizer.h"
 
 using namespace std;
+
+#define TIMER Timer timer([n = __func__, &fr = m_functionRuntimes](std::int64_t duration){ auto & v = fr[n]; v.first++; v.second += duration; })
 
 Tokenizer::Tokenizer()
     : m_tokenizedInputSequence()
@@ -18,19 +22,19 @@ Tokenizer::Tokenizer()
     , m_tokenPairReplacements()
     , m_tokenReplacements()
     , m_tokenRelationships()
+    , m_functionRuntimes()
 {}
 
 Tokenizer::Tokenizer(SQLite::DB & db)
     : Tokenizer()
 {
+    Timer timer([n = __func__, &fr = m_functionRuntimes](std::int64_t duration)
+    { auto & v = fr[n]; v.first++; v.second += duration; });
     LoadDataFromDB(db);
 }
 
 void Tokenizer::Process(const std::string& input)
 {
-    // WARNING:
-    //   this is just a placeholder of what should be executed,
-    //   not in any way proper or ready for review yet.
     auto firstTokenToUpdate = m_tokenizedInputSequence.Last();
     FeedInput(input);
     UpdateTokenPairCountAndPositions(firstTokenToUpdate);
@@ -41,6 +45,7 @@ void Tokenizer::Process(const std::string& input)
 
 void Tokenizer::FeedInput(const std::string& input)
 {
+    TIMER;
     bool separated = !m_tokenizedInputSequence.Empty();
     for(uint8_t c: input)
     {
@@ -58,6 +63,7 @@ void Tokenizer::FeedInput(const std::string& input)
 
 void Tokenizer::UpdateTokenPairCountAndPositions(LinkedList<Token>::Iterator position)
 {
+    TIMER;
     if(position == m_tokenizedInputSequence.end())
     {
         position = m_tokenizedInputSequence.begin();
@@ -81,6 +87,7 @@ void Tokenizer::UpdateTokenPairCountAndPositions(LinkedList<Token>::Iterator pos
 
 void Tokenizer::ApplyExistingTokenPairReplacements()
 {
+    TIMER;
     auto position = m_tokenizedInputSequence.begin();
     if(position == m_tokenizedInputSequence.end() || m_tokenPairReplacements.empty())
     {
@@ -126,6 +133,7 @@ void Tokenizer::ApplyExistingTokenPairReplacements()
 
 void Tokenizer::OptimizeTokenLength()
 {
+    TIMER;
     if(m_tokenPairCountAndPositions.empty())
     {
         return;
@@ -268,6 +276,7 @@ void Tokenizer::OptimizeTokenLength()
 
 void Tokenizer::CalculateTokenRelationships()
 {
+    TIMER;
     // process all the tokens
     for(auto position = m_tokenizedInputSequence.begin();position != m_tokenizedInputSequence.end(); ++position)
     {
@@ -289,6 +298,7 @@ void Tokenizer::CalculateTokenRelationships()
 
 std::string Tokenizer::GetTokenTextSequence(const Token & token) const
 {
+    TIMER;
     std::string text;
     std::vector<Token> pending{token};
     while(!pending.empty())

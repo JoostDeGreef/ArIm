@@ -6,8 +6,11 @@
 #include <type_traits>
 #include <vector>
 
+#include "Timer.h"
 #include "Tokenizer.h"
 #include "RingBuffer.h"
+
+#define TIMER Timer timer([n = __func__, &fr = m_functionRuntimes](std::int64_t duration){ auto & v = fr[n]; v.first++; v.second += duration; })
 
 namespace
 {
@@ -94,120 +97,134 @@ namespace
 
 void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
 {
-    db.ExecDML("DROP TABLE IF EXISTS Settings;");
-    db.ExecDML("DROP TABLE IF EXISTS TokenizedInputSequence;");
-    db.ExecDML("DROP TABLE IF EXISTS TokenPairCountAndPositions;");
-    db.ExecDML("DROP TABLE IF EXISTS TokenPairReplacements;");
-    db.ExecDML("DROP TABLE IF EXISTS TokenRelations;");
-
-    db.ExecDML("CREATE TABLE Settings(Setting TEXT PRIMARY KEY, Value INTEGER NOT NULL);");
-    db.ExecDML("CREATE TABLE TokenizedInputSequence(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
-    db.ExecDML("CREATE TABLE TokenPairReplacements(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
-    db.ExecDML("CREATE TABLE TokenRelations(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
-
-    db.BeginTransaction();
-
-    // Store settings
-    auto settingStatement = db.CompileStatement("INSERT INTO Settings(Setting, Value) VALUES(?, ?);");
-    auto addSetting = [&]<typename T>(const std::string& setting, const T& value)
     {
-        settingStatement.Bind(1, setting);
-        settingStatement.Bind(2, value);
-        settingStatement.ExecDML();
-    };
-    addSetting("Version", Configuration::Version);
-    addSetting("RelationDepth", Configuration::RelationDepth);
-    addSetting("TokenDictionary", Configuration::TokenDictionary);
-    addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetToken())); 
+        TIMER;
+        db.ExecDML("DROP TABLE IF EXISTS Settings;");
+        db.ExecDML("DROP TABLE IF EXISTS TokenizedInputSequence;");
+        db.ExecDML("DROP TABLE IF EXISTS TokenPairReplacements;");
+        db.ExecDML("DROP TABLE IF EXISTS TokenRelations;");
+        db.ExecDML("DROP TABLE IF EXISTS FunctionTimings;");
 
-    auto StorePOD = []<typename T>(RingBuffer<unsigned char> & data, const T & pod)
-    {
-        static_assert(std::is_trivially_copyable_v<T>);
-        size_t s = sizeof(T);
-        const unsigned char *p = reinterpret_cast<const unsigned char *>(&pod);
-        for(size_t i=0;i<s;++i)
+        db.ExecDML("CREATE TABLE Settings(Setting TEXT PRIMARY KEY, Value INTEGER NOT NULL);");
+        db.ExecDML("CREATE TABLE TokenizedInputSequence(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
+        db.ExecDML("CREATE TABLE TokenPairReplacements(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
+        db.ExecDML("CREATE TABLE TokenRelations(SequenceID INTEGER PRIMARY KEY, Data BLOB NOT NULL);");
+        db.ExecDML("CREATE TABLE FunctionTimings(Function TEXT PRIMARY KEY, Count INTEGER NOT NULL, Duration INTEGER NOT NULL);");
+
+        db.BeginTransaction();
+
+        // Store settings
+        auto settingStatement = db.CompileStatement("INSERT INTO Settings(Setting, Value) VALUES(?, ?);");
+        auto addSetting = [&]<typename T>(const std::string& setting, const T& value)
         {
-            data.PushBack(p[i]);
-        }
-    };
+            settingStatement.Bind(1, setting);
+            settingStatement.Bind(2, value);
+            settingStatement.ExecDML();
+        };
+        addSetting("Version", Configuration::Version);
+        addSetting("RelationDepth", Configuration::RelationDepth);
+        addSetting("TokenDictionary", Configuration::TokenDictionary);
+        addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetToken())); 
 
-    // Store m_tokenizedInputSequence
-    // LinkedList<Token> m_tokenizedInputSequence;
-    SequenceStore(db, "TokenizedInputSequence").Store(
-        [pos = m_tokenizedInputSequence.begin(), this, &StorePOD]
-        (RingBuffer<unsigned char> & data) mutable -> bool
-    {
-        if(pos == m_tokenizedInputSequence.end())
+        auto StorePOD = []<typename T>(RingBuffer<unsigned char> & data, const T & pod)
         {
-            return false;
-        }
-        StorePOD(data, *pos);
-        ++pos;
-        return true;
-    });
+            static_assert(std::is_trivially_copyable_v<T>);
+            size_t s = sizeof(T);
+            const unsigned char *p = reinterpret_cast<const unsigned char *>(&pod);
+            for(size_t i=0;i<s;++i)
+            {
+                data.PushBack(p[i]);
+            }
+        };
 
-    // Store m_tokenPairReplacements
-    // std::unordered_map<TokenPair,Token,TokenPair::HashFunction> m_tokenPairReplacements;
-    SequenceStore(db, "TokenPairReplacements").Store(
-        [pos = m_tokenPairReplacements.begin(), this, &StorePOD]
-        (RingBuffer<unsigned char> & data) mutable -> bool
-    {
-        if(pos == m_tokenPairReplacements.end())
-        {
-            return false;
-        }
-        StorePOD(data, pos->first.left);
-        StorePOD(data, pos->first.right);
-        StorePOD(data, pos->second);
-        ++pos;
-        return true;
-    });
-
-    // Store each relationship as Token, depth, connected token, and count.
-    // std::unordered_map<Token,std::array<std::unordered_map<Token,size_t,Token::HashFunction>,Configuration::RelationDepth>,Token::HashFunction> m_tokenRelationships;
-    if(!m_tokenRelationships.empty())
-    {
-        SequenceStore(db, "TokenRelations").Store(
-            [ tokenIter = m_tokenRelationships.begin()
-            , depthIter = m_tokenRelationships.begin()->second.begin()
-            , this, &StorePOD]
+        // Store m_tokenizedInputSequence
+        // LinkedList<Token> m_tokenizedInputSequence;
+        SequenceStore(db, "TokenizedInputSequence").Store(
+            [pos = m_tokenizedInputSequence.begin(), this, &StorePOD]
             (RingBuffer<unsigned char> & data) mutable -> bool
         {
-            if(tokenIter == m_tokenRelationships.end())
+            if(pos == m_tokenizedInputSequence.end())
             {
                 return false;
             }
-            if(depthIter == tokenIter->second.end())
+            StorePOD(data, *pos);
+            ++pos;
+            return true;
+        });
+
+        // Store m_tokenPairReplacements
+        // std::unordered_map<TokenPair,Token,TokenPair::HashFunction> m_tokenPairReplacements;
+        SequenceStore(db, "TokenPairReplacements").Store(
+            [pos = m_tokenPairReplacements.begin(), this, &StorePOD]
+            (RingBuffer<unsigned char> & data) mutable -> bool
+        {
+            if(pos == m_tokenPairReplacements.end())
             {
-                ++tokenIter;
+                return false;
+            }
+            StorePOD(data, pos->first.left);
+            StorePOD(data, pos->first.right);
+            StorePOD(data, pos->second);
+            ++pos;
+            return true;
+        });
+
+        // Store each relationship as Token, depth, connected token, and count.
+        // std::unordered_map<Token,std::array<std::unordered_map<Token,size_t,Token::HashFunction>,Configuration::RelationDepth>,Token::HashFunction> m_tokenRelationships;
+        if(!m_tokenRelationships.empty())
+        {
+            SequenceStore(db, "TokenRelations").Store(
+                [ tokenIter = m_tokenRelationships.begin()
+                , depthIter = m_tokenRelationships.begin()->second.begin()
+                , this, &StorePOD]
+                (RingBuffer<unsigned char> & data) mutable -> bool
+            {
                 if(tokenIter == m_tokenRelationships.end())
                 {
                     return false;
                 }
-                depthIter = tokenIter->second.begin();
-            }
-            if(depthIter == tokenIter->second.begin())
-            {
-                StorePOD(data, tokenIter->first);
-            }
-            const auto &relations = *depthIter;
-            StorePOD(data, relations.size());
-            for(const auto & relation : relations)
-            {
-                StorePOD(data, relation.first);
-                StorePOD(data, relation.second);
-            }
-            ++depthIter;
-            return true;
-        });
+                if(depthIter == tokenIter->second.end())
+                {
+                    ++tokenIter;
+                    if(tokenIter == m_tokenRelationships.end())
+                    {
+                        return false;
+                    }
+                    depthIter = tokenIter->second.begin();
+                }
+                if(depthIter == tokenIter->second.begin())
+                {
+                    StorePOD(data, tokenIter->first);
+                }
+                const auto &relations = *depthIter;
+                StorePOD(data, relations.size());
+                for(const auto & relation : relations)
+                {
+                    StorePOD(data, relation.first);
+                    StorePOD(data, relation.second);
+                }
+                ++depthIter;
+                return true;
+            });
+        }
+
+        db.CommitTransaction();
     }
 
-    db.CommitTransaction();
-
+    // Store timings
+    auto settingStatement = db.CompileStatement("INSERT INTO FunctionTimings(Function, Count, Duration) VALUES(?, ?, ?);");
+    for(const auto & t : m_functionRuntimes)
+    {
+        settingStatement.Bind(1, t.first);
+        settingStatement.Bind(2, t.second.first);
+        settingStatement.Bind(3, t.second.second);
+        settingStatement.ExecDML();
+    }
 }
 
 void Tokenizer::LoadDataFromDB(SQLite::DB & db)
 {
+    TIMER;
     auto ReadSetting = [&](const std::string& setting)
     {
         return db.ExecSingleInt64("SELECT Value FROM Settings WHERE Setting='" + setting + "';");

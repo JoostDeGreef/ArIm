@@ -81,12 +81,6 @@ int main(int argc, char ** argv)
     };
 
     {
-      size_t totalBytesInput = 0;
-      Timer readInputFileTimer([&](std::int64_t duration)
-      {
-        writeStatistic("total input", "bytes", std::to_string(totalBytesInput));
-        writeStatistic("total input", "duration (ms)", std::to_string(duration));
-      });
       try 
       {
         for (size_t i = 0; i<inputFiles.size();++i) 
@@ -103,8 +97,8 @@ int main(int argc, char ** argv)
           const std::string fileData = readData(filename);
           inputSize = fileData.size();
           t.Process(fileData);
-          totalBytesInput += inputSize;
         }
+        t.StoreTokenizerToDB(db);
       } 
       catch (const std::exception & error) 
       {
@@ -117,7 +111,6 @@ int main(int argc, char ** argv)
     {
       auto query = db.ExecQuery("SELECT \"Group\", Key, Value FROM Statistics ORDER BY rowid");
       std::string currentInputGroup;
-      bool settingsCaptionShown = false;
       bool inputCaptionShown = false;
       while (!query.IsEOF())
       {
@@ -136,17 +129,6 @@ int main(int argc, char ** argv)
           else std::cout << " | ";
           std::cout << key << ": " << value;
         }
-        else if (group == "total input")
-        {
-          if (!currentInputGroup.empty()) { std::cout << '\n'; currentInputGroup.clear(); }
-          std::cout << "  Total " << key << ": " << value << '\n';
-        }
-        else if (group == "settings")
-        {
-          if (!currentInputGroup.empty()) { std::cout << '\n'; currentInputGroup.clear(); }
-          if (!settingsCaptionShown) { std::cout << "Settings:" << '\n'; settingsCaptionShown = true; }
-          std::cout << "  " << key << ": " << value << '\n';
-        }
         else
         {
           if (!currentInputGroup.empty()) { std::cout << '\n'; currentInputGroup.clear(); }
@@ -156,8 +138,18 @@ int main(int argc, char ** argv)
       }
       if (!currentInputGroup.empty()) std::cout << '\n';
       query.Finalize();
+      query = db.ExecQuery("SELECT Function, Count, Duration FROM FunctionTimings ORDER BY Function");
+      std::cout << "Function timings:" << '\n';
+      while (!query.IsEOF())
+      {
+        std::cout << "  " 
+                  << query.GetStringField("Function") << ": "
+                  << query.GetInt64Field("Count") << " calls, "
+                  << query.GetInt64Field("Duration") << " ms" << '\n';
+        query.NextRow();
+      }
+      query.Finalize();
     }
-
     db.ExecDML("PRAGMA analysis_limit=400;");
     db.ExecDML("PRAGMA optimize;");
     db.Close();
