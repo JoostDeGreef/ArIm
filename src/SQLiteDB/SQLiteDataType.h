@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sqlite
+namespace SQLite
 {
     enum class DataType
     {

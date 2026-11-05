@@ -12,7 +12,7 @@
 
 using namespace std;
 
-using namespace sqlite;
+using namespace SQLite;
 
 const std::string DB::MemoryDB(":memory:");
 const std::string DB::TempDB("");

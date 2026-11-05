@@ -13,7 +13,7 @@
 
 using namespace std;
 
-using namespace sqlite;
+using namespace SQLite;
 
 Statement::Statement(std::shared_ptr<State>&& state)
     : m_state(std::move(state))

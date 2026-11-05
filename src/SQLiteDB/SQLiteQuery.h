@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-namespace sqlite
+namespace SQLite
 {
     class Rows;
 

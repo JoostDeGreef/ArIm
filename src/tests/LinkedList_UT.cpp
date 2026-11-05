@@ -27,7 +27,7 @@ TEST_F(LinkedListTest, EmptyListHasNoElements)
     EXPECT_TRUE(values.Empty());
     EXPECT_EQ(0, std::distance(values.begin(), values.end()));
     EXPECT_EQ(values.begin(), values.end());
-    EXPECT_EQ(values.RBegin(), values.REnd());
+    EXPECT_EQ(values.rbegin(), values.rend());
 }
 
 TEST_F(LinkedListTest, PushBackAndIteratorsTraverseInBothDirections)
@@ -51,7 +51,7 @@ TEST_F(LinkedListTest, PushBackAndIteratorsTraverseInBothDirections)
 
     const int reverseExpected[] = {5, 4, 3, 2, 1};
     index = 0;
-    for(auto it = values.RBegin(); it != values.REnd(); ++it)
+    for(auto it = values.rbegin(); it != values.rend(); ++it)
     {
         ASSERT_LT(index, 5);
         EXPECT_EQ(reverseExpected[index++], *it);
@@ -91,14 +91,14 @@ TEST_F(LinkedListTest, ConstIteratorsTraverseElements)
     const auto& constValues = values;
     const int expected[] = {6, 7, 8};
     int index = 0;
-    for(auto it = constValues.CBegin(); it != constValues.CEnd(); ++it)
+    for(auto it = constValues.begin(); it != constValues.end(); ++it)
     {
         EXPECT_EQ(expected[index++], *it);
     }
     EXPECT_EQ(3, index);
 
     index = 0;
-    for(auto it = constValues.CRBegin(); it != constValues.CREnd(); ++it)
+    for(auto it = constValues.crbegin(); it != constValues.crend(); ++it)
     {
         EXPECT_EQ(8 - index++, *it);
     }
@@ -169,20 +169,20 @@ TEST_F(LinkedListTest, ReverseEraseReturnsPreviousElementAndUpdatesEndpoints)
         values.PushBack(value);
     }
 
-    auto previous = values.Erase(values.RBegin());
-    ASSERT_NE(values.REnd(), previous);
+    auto previous = values.Erase(values.rbegin());
+    ASSERT_NE(values.rend(), previous);
     EXPECT_EQ(4, *previous);
 
-    auto middle = values.RBegin();
+    auto middle = values.rbegin();
     ++middle; // 3
     previous = values.Erase(middle);
-    ASSERT_NE(values.REnd(), previous);
+    ASSERT_NE(values.rend(), previous);
     EXPECT_EQ(2, *previous);
 
-    auto first = values.RBegin();
+    auto first = values.rbegin();
     ++first; // 2
     ++first; // 1
-    EXPECT_EQ(values.REnd(), values.Erase(first));
+    EXPECT_EQ(values.rend(), values.Erase(first));
 
     ASSERT_EQ(2, std::distance(values.begin(), values.end()));
     auto it = values.begin();
@@ -201,10 +201,10 @@ TEST_F(LinkedListTest, ReverseReplaceTwoReplacesAdjacentElements)
         values.PushBack(value);
     }
 
-    auto position = values.RBegin();
+    auto position = values.rbegin();
     ++position; // 4; reverse replacement removes 4 and replaces its predecessor, 3
     auto inserted = values.ReplaceTwo(position, 30);
-    ASSERT_NE(values.REnd(), inserted);
+    ASSERT_NE(values.rend(), inserted);
     EXPECT_EQ(30, *inserted);
 
     const int expected[] = {1, 2, 30, 5};

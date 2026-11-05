@@ -8,7 +8,7 @@
 #include "../SQLiteStatement.h"
 #include "../SQLiteSupport.h"
 
-using namespace sqlite;
+using namespace SQLite;
 
 class Statement::State
 {

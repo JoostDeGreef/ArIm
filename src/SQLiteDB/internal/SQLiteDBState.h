@@ -8,7 +8,7 @@
 #include "../SQLiteDB.h"
 #include "../SQLiteSupport.h"
 
-using namespace sqlite;
+using namespace SQLite;
 
 class DB::State
 {

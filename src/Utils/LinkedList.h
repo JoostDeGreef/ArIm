@@ -137,29 +137,16 @@ public:
         using IteratorImpl<ConstReverseIterator, true, true>::IteratorImpl;
     };
 
-    // todo: this is a mess. begin/end and similar should not use capitalisation.
-    ConstIterator CBegin() const;
-    ConstIterator CEnd() const;
-    ConstIterator Begin() const;
-    ConstIterator End() const;
-    Iterator Begin();
-    Iterator End();
-    ConstIterator begin() const { return CBegin(); }
-    ConstIterator end() const { return CEnd(); }
-    Iterator begin() { return Begin(); }
-    Iterator end() { return End(); }
-    ReverseIterator RBegin();
-    ReverseIterator REnd();
-    ConstReverseIterator RBegin() const;
-    ConstReverseIterator REnd() const;
-    ReverseIterator rbegin() { return RBegin(); }
-    ReverseIterator rend() { return REnd(); }
-    ConstReverseIterator rbegin() const { return RBegin(); }
-    ConstReverseIterator rend() const { return REnd(); }
-    ConstReverseIterator CRBegin() const;
-    ConstReverseIterator CREnd() const;
-    ConstReverseIterator RCBegin() const;
-    ConstReverseIterator RCEnd() const;
+    ConstIterator begin() const;
+    ConstIterator end() const;
+    Iterator begin();
+    Iterator end();
+    ReverseIterator rbegin();
+    ReverseIterator rend();
+    ConstReverseIterator rbegin() const;
+    ConstReverseIterator rend() const;
+    ConstReverseIterator crbegin() const;
+    ConstReverseIterator crend() const;
 
     Iterator Last() { return Iterator(m_last); }
     ConstIterator Last() const { return ConstIterator(m_last); }
@@ -194,87 +181,63 @@ private:
 };
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::Iterator LinkedList<T, BlockSize>::Begin()
+typename LinkedList<T, BlockSize>::Iterator LinkedList<T, BlockSize>::begin()
 {
     return Iterator(m_first);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::Iterator LinkedList<T, BlockSize>::End()
+typename LinkedList<T, BlockSize>::Iterator LinkedList<T, BlockSize>::end()
 {
     return Iterator(nullptr);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::CBegin() const
+typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::begin() const
 {
     return ConstIterator(m_first);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::CEnd() const
+typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::end() const
 {
     return ConstIterator(nullptr);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::Begin() const
-{
-    return ConstIterator(m_first);
-}
-
-template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstIterator LinkedList<T, BlockSize>::End() const
-{
-    return ConstIterator(nullptr);
-}
-
-template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ReverseIterator LinkedList<T, BlockSize>::RBegin()
+typename LinkedList<T, BlockSize>::ReverseIterator LinkedList<T, BlockSize>::rbegin()
 {
     return ReverseIterator(m_last);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ReverseIterator LinkedList<T, BlockSize>::REnd()
+typename LinkedList<T, BlockSize>::ReverseIterator LinkedList<T, BlockSize>::rend()
 {
     return ReverseIterator(nullptr);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::RBegin() const
+typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::rbegin() const
 {
     return ConstReverseIterator(m_last);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::REnd() const
+typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::rend() const
 {
     return ConstReverseIterator(nullptr);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::CRBegin() const
+typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::crbegin() const
 {
     return ConstReverseIterator(m_last);
 }
 
 template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::CREnd() const
+typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::crend() const
 {
     return ConstReverseIterator(nullptr);
-}
-
-template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::RCBegin() const
-{
-    return CRBegin();
-}
-
-template<typename T, size_t BlockSize>
-typename LinkedList<T, BlockSize>::ConstReverseIterator LinkedList<T, BlockSize>::RCEnd() const
-{
-    return CREnd();
 }
 
 template<typename T, size_t BlockSize>

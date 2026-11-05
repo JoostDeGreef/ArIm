@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-namespace sqlite
+namespace SQLite
 {
     class Exception : public std::runtime_error
     {

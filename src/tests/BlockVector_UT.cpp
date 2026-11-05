@@ -31,7 +31,7 @@ TEST_F(BlockVectorTest, ReverseIteratorsTraverseAcrossBlocks)
 
     const int expected[] = {5, 4, 3, 2, 1};
     int index = 0;
-    for(auto it = values.RBegin(); it != values.REnd(); ++it)
+    for(auto it = values.rbegin(); it != values.rend(); ++it)
     {
         EXPECT_EQ(expected[index++], *it);
     }
@@ -39,7 +39,7 @@ TEST_F(BlockVectorTest, ReverseIteratorsTraverseAcrossBlocks)
 
     const auto& constValues = values;
     index = 0;
-    for(auto it = constValues.CRBegin(); it != constValues.CREnd(); ++it)
+    for(auto it = constValues.crbegin(); it != constValues.crend(); ++it)
     {
         EXPECT_EQ(expected[index++], *it);
     }
@@ -79,10 +79,10 @@ TEST_F(BlockVectorTest, ConstForwardAndReverseAccessorsTraverseValues)
     };
 
     checkForward(constValues.begin(), constValues.end());
-    checkForward(constValues.CBegin(), constValues.CEnd());
-    checkReverse(constValues.RBegin(), constValues.REnd());
-    checkReverse(constValues.CRBegin(), constValues.CREnd());
-    checkReverse(constValues.RCBegin(), constValues.RCEnd());
+    checkForward(constValues.begin(), constValues.end());
+    checkReverse(constValues.rbegin(), constValues.rend());
+    checkReverse(constValues.crbegin(), constValues.crend());
+    checkReverse(constValues.crbegin(), constValues.crend());
 }
 
 TEST_F(BlockVectorTest, IteratorsCompareAndPostIncrementWithinAndAcrossBlocks)
@@ -204,20 +204,20 @@ TEST_F(BlockVectorTest, ReverseEraseReturnsPreviousElementAcrossBlockBoundary)
         values.PushBack(value);
     }
 
-    auto previous = values.Erase(values.RBegin());
-    ASSERT_NE(values.REnd(), previous);
+    auto previous = values.Erase(values.rbegin());
+    ASSERT_NE(values.rend(), previous);
     EXPECT_EQ(4, *previous);
 
-    auto middle = values.RBegin();
+    auto middle = values.rbegin();
     ++middle; // 3
     previous = values.Erase(middle);
-    ASSERT_NE(values.REnd(), previous);
+    ASSERT_NE(values.rend(), previous);
     EXPECT_EQ(2, *previous);
 
-    auto first = values.RBegin();
+    auto first = values.rbegin();
     ++first; // 2
     ++first; // 1
-    EXPECT_EQ(values.REnd(), values.Erase(first));
+    EXPECT_EQ(values.rend(), values.Erase(first));
     ASSERT_EQ(2u, values.Size());
     auto it = values.begin();
     EXPECT_EQ(2, *it++);

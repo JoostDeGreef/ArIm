@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "Tokenizer.h"
+#include "RingBuffer.h"
 
 namespace
 {
@@ -14,41 +15,41 @@ namespace
     class SequenceStore
     {
     public:
-        SequenceStore(sqlite::DB &db, const std::string & table)
+        SequenceStore(SQLite::DB &db, const std::string & table)
             : m_statement(db.CompileStatement("INSERT INTO " + table + "(SequenceID, Data) VALUES(NULL, ?);"))
         {}
 
-        // bool GetDataCallback(std::vector &)
+        // bool GetDataCallback(RingBuffer &)
         // should: emplace_back data and return true,
         //         or return false if no more data available;
         template <typename GetDataCallback>
         void Store(GetDataCallback&& GetData)
         {
-            std::vector<unsigned char> data;
-            data.reserve(BLOB_SIZE+256);
-            while((data.size()>=BLOB_SIZE) || GetData(data))
+            RingBuffer<unsigned char> data;
+            data.Reserve(BLOB_SIZE*8);
+            while((data.Size()>=BLOB_SIZE) || GetData(data))
             {
-                if(data.size()>=BLOB_SIZE)
+                if(data.Size()>=BLOB_SIZE)
                 {
-                    m_statement.Bind(1,data.data(),BLOB_SIZE);
+                    m_statement.Bind(1,data.GetData(BLOB_SIZE),BLOB_SIZE);
                     m_statement.ExecDML();
-                    data.erase(data.begin()+0,data.begin()+BLOB_SIZE);
+                    data.EraseFront(BLOB_SIZE);
                 }
             }
-            if(!data.empty())
+            if(!data.Empty())
             {
-                m_statement.Bind(1,data.data(),data.size());
+                m_statement.Bind(1,data.GetData(data.Size()),data.Size());
                 m_statement.ExecDML();
             }
         }
     private:
-        sqlite::Statement m_statement;
+        SQLite::Statement m_statement;
     };
 
     class SequenceReader
     {
     public:
-        SequenceReader(sqlite::DB& db, const std::string& table)
+        SequenceReader(SQLite::DB& db, const std::string& table)
             : m_query(db.ExecQuery("SELECT Data FROM " + table + " ORDER BY SequenceID;"))
         {}
 
@@ -85,13 +86,13 @@ namespace
         }
 
     private:
-        sqlite::Query m_query;
+        SQLite::Query m_query;
         std::vector<unsigned char> m_data;
         size_t m_position = 0;
     };
 }
 
-void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
+void Tokenizer::StoreTokenizerToDB(SQLite::DB & db) const
 {
     db.ExecDML("DROP TABLE IF EXISTS Settings;");
     db.ExecDML("DROP TABLE IF EXISTS TokenizedInputSequence;");
@@ -117,16 +118,16 @@ void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
     addSetting("Version", Configuration::Version);
     addSetting("RelationDepth", Configuration::RelationDepth);
     addSetting("TokenDictionary", Configuration::TokenDictionary);
-    addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetData()));
+    addSetting("NextToken", static_cast<unsigned long>(m_nextUnusedToken.GetData())); 
 
-    auto StorePOD = []<typename T>(std::vector<unsigned char> & data, const T & pod)
+    auto StorePOD = []<typename T>(RingBuffer<unsigned char> & data, const T & pod)
     {
         static_assert(std::is_trivially_copyable_v<T>);
         size_t s = sizeof(T);
         const unsigned char *p = reinterpret_cast<const unsigned char *>(&pod);
         for(size_t i=0;i<s;++i)
         {
-            data.emplace_back(p[i]);
+            data.PushBack(p[i]);
         }
     };
 
@@ -134,7 +135,7 @@ void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
     // LinkedList<Token> m_tokenizedInputSequence;
     SequenceStore(db, "TokenizedInputSequence").Store(
         [pos = m_tokenizedInputSequence.begin(), this, &StorePOD]
-        (std::vector<unsigned char> & data) mutable -> bool
+        (RingBuffer<unsigned char> & data) mutable -> bool
     {
         if(pos == m_tokenizedInputSequence.end())
         {
@@ -150,7 +151,7 @@ void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
     // std::unordered_map<TokenPair,Token,TokenPair::HashFunction> m_tokenPairReplacements;
     SequenceStore(db, "TokenPairReplacements").Store(
         [pos = m_tokenPairReplacements.begin(), this, &StorePOD]
-        (std::vector<unsigned char> & data) mutable -> bool
+        (RingBuffer<unsigned char> & data) mutable -> bool
     {
         if(pos == m_tokenPairReplacements.end())
         {
@@ -174,7 +175,7 @@ void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
             [ tokenIter = m_tokenRelationships.begin()
             , depthIter = m_tokenRelationships.begin()->second.begin()
             , this, &StorePOD]
-            (std::vector<unsigned char> & data) mutable -> bool
+            (RingBuffer<unsigned char> & data) mutable -> bool
         {
             if(tokenIter == m_tokenRelationships.end())
             {
@@ -209,7 +210,7 @@ void Tokenizer::StoreTokenizerToDB(sqlite::DB & db) const
 
 }
 
-void Tokenizer::LoadDataFromDB(sqlite::DB & db)
+void Tokenizer::LoadDataFromDB(SQLite::DB & db)
 {
     auto ReadSetting = [&](const std::string& setting)
     {

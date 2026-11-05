@@ -25,7 +25,7 @@ class Tokenizer
 {   
 public:
     Tokenizer();
-    Tokenizer(sqlite::DB & db);
+    Tokenizer(SQLite::DB & db);
     // This class stores a lot of data, so we don't want to allow copying or moving it around.
     Tokenizer(const Tokenizer&) = delete;
     Tokenizer(Tokenizer&&) = delete;
@@ -36,7 +36,7 @@ public:
     void Process(const std::string& input); 
 
     // Store tokenizer state to a database
-    void StoreTokenizerToDB(sqlite::DB & db) const;
+    void StoreTokenizerToDB(SQLite::DB & db) const;
 
 private:
     // stored to DB
@@ -90,5 +90,5 @@ private:
     void CalculateTokenRelationships();
 
     // load the tokenizer state from a database
-    void LoadDataFromDB(sqlite::DB & db);
+    void LoadDataFromDB(SQLite::DB & db);
 };

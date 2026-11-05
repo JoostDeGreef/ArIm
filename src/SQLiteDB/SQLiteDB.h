@@ -11,7 +11,7 @@
 #include "SQLiteQuery.h"
 #include "SQLiteStatement.h"
 
-namespace sqlite
+namespace SQLite
 {
   class DB
   {

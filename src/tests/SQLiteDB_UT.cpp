@@ -18,9 +18,9 @@ protected:
 
 TEST_F(SQLiteTest, SmokeTest)
 {
-    sqlite::DB db;
+    SQLite::DB db;
 
-    db.Open(sqlite::DB::MemoryDB,false);
+    db.Open(SQLite::DB::MemoryDB,false);
 
     int res = db.ExecDML("CREATE TABLE temp(id INTEGER PRIMARY KEY ASC, key, value);");
     ASSERT_EQ(0,res);
@@ -59,10 +59,10 @@ TEST_F(SQLiteTest, SmokeTest)
 
 TEST_F(SQLiteTest, OwnershipTestDestroyDbWithActiveStatement)
 {
-    sqlite::Statement statement;
+    SQLite::Statement statement;
     {
-        sqlite::DB db;
-        db.Open(sqlite::DB::MemoryDB, false);
+        SQLite::DB db;
+        db.Open(SQLite::DB::MemoryDB, false);
         statement = db.CompileStatement("SELECT 1;");
     }
 
@@ -72,19 +72,19 @@ TEST_F(SQLiteTest, OwnershipTestDestroyDbWithActiveStatement)
 
 TEST_F(SQLiteTest, OwnershipTestFinalizeStatementTwice)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     auto statement = db.CompileStatement("SELECT 1;");
 
     EXPECT_NO_THROW(statement.Finalize());
     EXPECT_NO_THROW(statement.Finalize());
-    EXPECT_THROW(statement.Bind(1, 1), sqlite::Exception);
+    EXPECT_THROW(statement.Bind(1, 1), SQLite::Exception);
 }
 
 TEST_F(SQLiteTest, OwnershipTestCloseDbWithActiveStatement)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     auto statement = db.CompileStatement("SELECT 1;");
 
     EXPECT_NO_THROW(db.Close());
@@ -93,12 +93,12 @@ TEST_F(SQLiteTest, OwnershipTestCloseDbWithActiveStatement)
 
 TEST_F(SQLiteTest, OwnershipTestMoveStatement)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     db.ExecDML("CREATE TABLE values_table(value INTEGER);");
 
     auto source = db.CompileStatement("INSERT INTO values_table VALUES(?);");
-    sqlite::Statement moved(std::move(source));
+    SQLite::Statement moved(std::move(source));
     EXPECT_NO_THROW(source.Finalize());
     moved.Bind(1, 42);
     EXPECT_EQ(1, moved.ExecDML());
@@ -114,8 +114,8 @@ TEST_F(SQLiteTest, OwnershipTestMoveStatement)
 
 TEST_F(SQLiteTest, OwnershipTestQueryRowsFinalizeOnEarlyExit)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
 
     auto query = db.ExecQuery("SELECT 1 UNION ALL SELECT 2;");
     {
@@ -132,11 +132,11 @@ TEST_F(SQLiteTest, OwnershipTestQueryRowsFinalizeOnEarlyExit)
 
 TEST_F(SQLiteTest, OwnershipTestMoveQuery)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
 
     auto source = db.ExecQuery("SELECT 42;");
-    sqlite::Query moved(std::move(source));
+    SQLite::Query moved(std::move(source));
     EXPECT_NO_THROW(source.Finalize());
     EXPECT_EQ(42, moved.GetIntField(0));
 
@@ -149,10 +149,10 @@ TEST_F(SQLiteTest, OwnershipTestMoveQuery)
 
 TEST_F(SQLiteTest, OwnershipTestQueryKeepsCompiledStatementAlive)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
 
-    sqlite::Query query;
+    SQLite::Query query;
     {
         auto statement = db.CompileStatement("SELECT 42 UNION ALL SELECT 43;");
         query = statement.ExecQuery();
@@ -165,10 +165,10 @@ TEST_F(SQLiteTest, OwnershipTestQueryKeepsCompiledStatementAlive)
 
 TEST_F(SQLiteTest, OwnershipTestQueryKeepsDatabaseAlive)
 {
-    sqlite::Query query;
+    SQLite::Query query;
     {
-        sqlite::DB db;
-        db.Open(sqlite::DB::MemoryDB, false);
+        SQLite::DB db;
+        db.Open(SQLite::DB::MemoryDB, false);
         query = db.ExecQuery("SELECT 42;");
     }
 
@@ -177,8 +177,8 @@ TEST_F(SQLiteTest, OwnershipTestQueryKeepsDatabaseAlive)
 
 TEST_F(SQLiteTest, OwnershipTestFinalizedQueryDoesNotFinalizeCompiledStatement)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     auto statement = db.CompileStatement("SELECT ?;");
 
     {

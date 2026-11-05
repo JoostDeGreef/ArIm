@@ -161,29 +161,16 @@ public:
         using IteratorImpl<ConstReverseIterator, true, true>::IteratorImpl;
     };
 
-    // todo: this is a mess. begin/end and similar should not use capitalisation.
-    ConstIterator CBegin() const;
-    ConstIterator CEnd() const;
-    ConstIterator Begin() const;
-    ConstIterator End() const;
-    Iterator Begin();
-    Iterator End();
-    ConstIterator begin() const { return CBegin(); }
-    ConstIterator end() const { return CEnd(); }
-    Iterator begin() { return Begin(); }
-    Iterator end() { return End(); }
-    ReverseIterator RBegin();
-    ReverseIterator REnd();
-    ConstReverseIterator RBegin() const;
-    ConstReverseIterator REnd() const;
-    ReverseIterator rbegin() { return RBegin(); }
-    ReverseIterator rend() { return REnd(); }
-    ConstReverseIterator rbegin() const { return CRBegin(); }
-    ConstReverseIterator rend() const { return CREnd(); }
-    ConstReverseIterator CRBegin() const;
-    ConstReverseIterator CREnd() const;
-    ConstReverseIterator RCBegin() const;
-    ConstReverseIterator RCEnd() const;
+    ConstIterator begin() const;
+    ConstIterator end() const;
+    Iterator begin();
+    Iterator end();
+    ReverseIterator rbegin();
+    ReverseIterator rend();
+    ConstReverseIterator rbegin() const;
+    ConstReverseIterator rend() const;
+    ConstReverseIterator crbegin() const;
+    ConstReverseIterator crend() const;
 
     ~BlockVector();
 
@@ -240,87 +227,63 @@ T BlockVector<T, BlockSize>::Pop()
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::Iterator BlockVector<T, BlockSize>::Begin()
+typename BlockVector<T, BlockSize>::Iterator BlockVector<T, BlockSize>::begin()
 {
     return Iterator(m_first, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::Iterator BlockVector<T, BlockSize>::End()
+typename BlockVector<T, BlockSize>::Iterator BlockVector<T, BlockSize>::end()
 {
     return Iterator(nullptr, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::CBegin() const
+typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::begin() const
 {
     return ConstIterator(m_first, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::CEnd() const
+typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::end() const
 {
     return ConstIterator(nullptr, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::Begin() const
-{
-    return ConstIterator(m_first, 0);
-}
-
-template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstIterator BlockVector<T, BlockSize>::End() const
-{
-    return ConstIterator(nullptr, 0);
-}
-
-template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ReverseIterator BlockVector<T, BlockSize>::RBegin()
+typename BlockVector<T, BlockSize>::ReverseIterator BlockVector<T, BlockSize>::rbegin()
 {
     return ReverseIterator(m_last, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ReverseIterator BlockVector<T, BlockSize>::REnd()
+typename BlockVector<T, BlockSize>::ReverseIterator BlockVector<T, BlockSize>::rend()
 {
     return ReverseIterator(nullptr, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::RBegin() const
+typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::rbegin() const
 {
     return ConstReverseIterator(m_last, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::REnd() const
+typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::rend() const
 {
     return ConstReverseIterator(nullptr, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::CRBegin() const
+typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::crbegin() const
 {
     return ConstReverseIterator(m_last, 0);
 }
 
 template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::CREnd() const
+typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::crend() const
 {
     return ConstReverseIterator(nullptr, 0);
-}
-
-template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::RCBegin() const
-{
-    return CRBegin();
-}
-
-template<typename T, size_t BlockSize>
-typename BlockVector<T, BlockSize>::ConstReverseIterator BlockVector<T, BlockSize>::RCEnd() const
-{
-    return CREnd();
 }
 
 template<typename T, size_t BlockSize>

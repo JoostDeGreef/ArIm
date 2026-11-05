@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-namespace sqlite
+namespace SQLite
 {
     class Statement
     {

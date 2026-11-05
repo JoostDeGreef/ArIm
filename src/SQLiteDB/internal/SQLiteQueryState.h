@@ -8,7 +8,7 @@
 #include "../SQLiteQuery.h"
 #include "../SQLiteSupport.h"
 
-using namespace sqlite;
+using namespace SQLite;
 
 class Query::State
 {

@@ -311,7 +311,7 @@ executables: ${EXE_FILES}
 .PHONY: run_tests
 run_tests: ${EXE_FILES}
 	@mkdir -p temp
-	bin/Tokenizer -S -o temp/all.sq3 data/*.txt
+	bin/Tokenizer -s -o temp/all.sq3 data/*.txt
 
 .PHONY: run_callgrind
 run_callgrind: ${EXE_FILES}
@@ -321,7 +321,7 @@ run_callgrind: ${EXE_FILES}
 .PHONY: run_benchmark
 run_benchmark: ${EXE_FILES}
 	@mkdir -p temp
-	bin/Tokenizer -S -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
+	bin/Tokenizer -s -o temp/alice_in_wonderland.sq3 data/alice_in_wonderland.txt
 
 .PHONY: run_linked_list_benchmark
 run_linked_list_benchmark: ${EXE_FILES}

@@ -12,7 +12,7 @@
 
 using namespace std;
 
-using namespace sqlite;
+using namespace SQLite;
 
 Query::Query()
     : m_state(make_shared<State>(nullptr,nullptr,true))

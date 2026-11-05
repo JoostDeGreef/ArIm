@@ -5,7 +5,7 @@
 #include "sqlite3.h"
 #include "SQLiteException.h"
 
-namespace sqlite
+namespace SQLite
 {
     using DatabaseHandle = std::shared_ptr<sqlite3>;
     using StatementHandle = std::shared_ptr<sqlite3_stmt>;

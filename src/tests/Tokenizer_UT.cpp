@@ -137,8 +137,8 @@ TEST_F(TokenizerTest, StoreAndLoadRoundTripPreservesInput)
         return text;
     };
 
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     original.StoreTokenizerToDB(db);
 
     Tokenizer loaded;
@@ -197,8 +197,8 @@ TEST_F(TokenizerTest, StoreAndLoadReadsBlobChunksAcrossRecordBoundaries)
     }
     original.m_nextUnusedToken.SetData(712);
 
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
     original.StoreTokenizerToDB(db);
     EXPECT_GT(db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenizedInputSequence;"), 1024);
     EXPECT_GT(db.ExecSingleInt64("SELECT SUM(length(Data)) FROM TokenPairReplacements;"), 1024);
@@ -240,8 +240,8 @@ TEST_F(TokenizerTest, StoreAndLoadReadsBlobChunksAcrossRecordBoundaries)
 
 TEST_F(TokenizerTest, StoreAndLoadHandlesEmptyTokenizer)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
 
     Tokenizer original;
     original.StoreTokenizerToDB(db);
@@ -256,8 +256,8 @@ TEST_F(TokenizerTest, StoreAndLoadHandlesEmptyTokenizer)
 
 TEST_F(TokenizerTest, LoadRejectsIncompatibleConfiguration)
 {
-    sqlite::DB db;
-    db.Open(sqlite::DB::MemoryDB, false);
+    SQLite::DB db;
+    db.Open(SQLite::DB::MemoryDB, false);
 
     Tokenizer original;
     original.FeedInput("configuration check");

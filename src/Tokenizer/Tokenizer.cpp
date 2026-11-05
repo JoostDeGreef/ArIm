@@ -19,7 +19,7 @@ Tokenizer::Tokenizer()
     , m_tokenRelationships()
 {}
 
-Tokenizer::Tokenizer(sqlite::DB & db)
+Tokenizer::Tokenizer(SQLite::DB & db)
     : Tokenizer()
 {
     LoadDataFromDB(db);
