@@ -38,6 +38,9 @@
 # to run the unit tests:
 #   make target=debug/release/profile run_UTs
 #
+# if you switch compilers or change compiler flags, consider rebuilding the 3rdParty libs too:
+#   make proper && make target=release run_UTs
+#
 
 # tools
 AR=ar
